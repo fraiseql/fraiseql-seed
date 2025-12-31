@@ -1,8 +1,7 @@
 """Tests for UNIQUE constraint handling."""
 
-from psycopg import Connection
-
 from fraiseql_data import SeedBuilder
+from psycopg import Connection
 
 
 def test_unique_text_column(db_conn: Connection, test_schema: str):

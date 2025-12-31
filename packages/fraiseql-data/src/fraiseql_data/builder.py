@@ -6,7 +6,12 @@ from fraiseql_uuid import Pattern
 from psycopg import Connection
 
 from fraiseql_data.backends.direct import DirectBackend
-from fraiseql_data.exceptions import ColumnGenerationError, ForeignKeyResolutionError
+from fraiseql_data.exceptions import (
+    ColumnGenerationError,
+    ForeignKeyResolutionError,
+    SelfReferenceError,
+    UniqueConstraintError,
+)
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
 from fraiseql_data.introspection import SchemaIntrospector
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
@@ -99,8 +104,36 @@ class SeedBuilder:
 
         for plan in sorted_plan:
             table_info = self.introspector.get_table_info(plan.table)
-            rows = self._generate_rows(table_info, plan, generated_data)
-            inserted_rows = self.backend.insert_rows(table_info, rows)
+
+            # Check if table has self-referencing FKs
+            has_self_ref = len(table_info.get_self_referencing_fks()) > 0
+
+            if has_self_ref:
+                # For self-referencing tables, insert one-by-one and track
+                inserted_rows = []
+                for instance in range(1, plan.count + 1):
+                    # Create single-row plan with correct instance number
+                    single_plan = SeedPlan(
+                        table=plan.table,
+                        count=1,
+                        strategy=plan.strategy,
+                        overrides=plan.overrides,
+                    )
+                    # Generate single row, passing instance number
+                    rows = self._generate_rows(
+                        table_info,
+                        single_plan,
+                        generated_data,
+                        inserted_rows,
+                        instance_start=instance,
+                    )
+                    # Insert the single row (use bulk=False for single row)
+                    new_rows = self.backend.insert_rows(table_info, rows, bulk=False)
+                    inserted_rows.extend(new_rows)
+            else:
+                # Regular table: generate all rows at once
+                rows = self._generate_rows(table_info, plan, generated_data)
+                inserted_rows = self.backend.insert_rows(table_info, rows)
 
             # Store for reference by dependent tables
             generated_data[plan.table] = inserted_rows
@@ -113,6 +146,8 @@ class SeedBuilder:
         table_info: TableInfo,
         plan: SeedPlan,
         generated_data: dict[str, list[dict[str, Any]]],
+        current_table_rows: list[dict[str, Any]] | None = None,
+        instance_start: int = 1,
     ) -> list[dict[str, Any]]:
         """
         Generate rows for a table.
@@ -121,6 +156,8 @@ class SeedBuilder:
             table_info: Table metadata
             plan: Seed plan for this table
             generated_data: Previously generated data for FK references
+            current_table_rows: Previously inserted rows for self-referencing tables
+            instance_start: Starting instance number for Trinity pattern UUIDs
 
         Returns:
             List of row dicts (before database insertion)
@@ -128,12 +165,23 @@ class SeedBuilder:
         Raises:
             ForeignKeyResolutionError: If FK reference cannot be resolved
             ColumnGenerationError: If column data cannot be auto-generated
+            SelfReferenceError: If self-referencing FK is non-nullable
+            UniqueConstraintError: If cannot generate unique value
         """
+        import random
+
         faker_gen = FakerGenerator()
         trinity_gen = TrinityGenerator(self.pattern, table_info.name)
 
+        # Track UNIQUE column values to avoid duplicates
+        unique_values: dict[str, set[Any]] = {}
+
+        # Initialize current_table_rows if None
+        if current_table_rows is None:
+            current_table_rows = []
+
         rows = []
-        for i in range(1, plan.count + 1):
+        for i in range(instance_start, instance_start + plan.count):
             row: dict[str, Any] = {}
 
             # Generate data for each column
@@ -149,11 +197,27 @@ class SeedBuilder:
                 # Handle foreign keys
                 if any(fk.column == col.name for fk in table_info.foreign_keys):
                     fk = next(fk for fk in table_info.foreign_keys if fk.column == col.name)
-                    # Validate parent data exists
+
+                    # Handle self-referencing FK
+                    if fk.is_self_referencing:
+                        if not col.is_nullable:
+                            raise SelfReferenceError(
+                                col.name,
+                                table_info.name,
+                                "Non-nullable self-reference requires override",
+                            )
+                        # First row gets NULL, others pick from current table
+                        if len(current_table_rows) == 0:
+                            row[col.name] = None
+                        else:
+                            parent_row = random.choice(current_table_rows)
+                            row[col.name] = parent_row[fk.referenced_column]
+                        continue
+
+                    # Regular FK: validate parent data exists
                     if fk.referenced_table not in generated_data:
                         raise ForeignKeyResolutionError(fk.column, fk.referenced_table)
                     # Pick random from generated parent data
-                    import random
                     parent_row = random.choice(generated_data[fk.referenced_table])
                     row[col.name] = parent_row[fk.referenced_column]
                     continue
@@ -176,6 +240,28 @@ class SeedBuilder:
                 # Generate using Faker
                 if plan.strategy == "faker":
                     value = faker_gen.generate(col.name, col.pg_type)
+
+                    # Handle UNIQUE constraint
+                    if col.is_unique and value is not None:
+                        if col.name not in unique_values:
+                            unique_values[col.name] = set()
+
+                        # Retry if collision
+                        MAX_RETRIES = 10
+                        retries = 0
+                        while value in unique_values[col.name] and retries < MAX_RETRIES:
+                            value = faker_gen.generate(col.name, col.pg_type)
+                            retries += 1
+
+                        if retries == MAX_RETRIES:
+                            raise UniqueConstraintError(
+                                col.name,
+                                table_info.name,
+                                "Could not generate unique value after 10 attempts",
+                            )
+
+                        unique_values[col.name].add(value)
+
                     if value is None and not col.is_nullable and col.default_value is None:
                         # Could not auto-generate required column
                         raise ColumnGenerationError(col.name, col.pg_type, table_info.name)

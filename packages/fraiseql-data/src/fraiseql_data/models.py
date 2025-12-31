@@ -15,6 +15,7 @@ class ColumnInfo:
         is_nullable: Whether column allows NULL values
         is_primary_key: Whether column is primary key
         default_value: Database default value expression (if any)
+        is_unique: Whether column has UNIQUE constraint
     """
 
     name: str
@@ -22,6 +23,7 @@ class ColumnInfo:
     is_nullable: bool
     is_primary_key: bool = False
     default_value: str | None = None
+    is_unique: bool = False
 
 
 @dataclass
@@ -33,11 +35,13 @@ class ForeignKeyInfo:
         column: Foreign key column name in this table
         referenced_table: Parent table being referenced
         referenced_column: Column in parent table (usually PK)
+        is_self_referencing: Whether this FK references the same table
     """
 
     column: str
     referenced_table: str
     referenced_column: str
+    is_self_referencing: bool = False
 
 
 @dataclass
@@ -105,6 +109,15 @@ class TableInfo:
         if "identifier" in {c.name for c in self.columns}:
             return "identifier"
         return None
+
+    def get_self_referencing_fks(self) -> list[ForeignKeyInfo]:
+        """
+        Get all self-referencing foreign keys.
+
+        Returns:
+            List of ForeignKeyInfo objects where is_self_referencing is True
+        """
+        return [fk for fk in self.foreign_keys if fk.is_self_referencing]
 
 
 @dataclass

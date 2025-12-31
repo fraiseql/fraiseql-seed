@@ -2,9 +2,8 @@
 
 import time
 
-from psycopg import Connection
-
 from fraiseql_data import SeedBuilder
+from psycopg import Connection
 
 
 def test_bulk_insert_100_rows(db_conn: Connection, test_schema: str):

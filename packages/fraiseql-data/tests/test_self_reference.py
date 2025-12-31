@@ -1,8 +1,7 @@
 """Tests for self-referencing table support."""
 
-from psycopg import Connection
-
 from fraiseql_data import SeedBuilder
+from psycopg import Connection
 
 
 def test_self_reference_nullable(db_conn: Connection, test_schema: str):
@@ -67,8 +66,8 @@ def test_self_reference_non_nullable_error(db_conn: Connection, test_schema: str
     builder.add("tb_node", count=5)
 
     try:
-        seeds = builder.execute()
-        assert False, "Expected SelfReferenceError but execution succeeded"
+        builder.execute()
+        raise AssertionError("Expected SelfReferenceError but execution succeeded")
     except Exception as e:
         # Should raise SelfReferenceError
         assert "self-reference" in str(e).lower() or "SelfReferenceError" in str(type(e))

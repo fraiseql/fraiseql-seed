@@ -81,6 +81,9 @@ class SchemaIntrospector:
 
     def get_columns(self, table_name: str) -> list[ColumnInfo]:
         """Get all columns for a table (optimized single query)."""
+        # Get UNIQUE constraints for this table
+        unique_columns = self.get_unique_constraints(table_name)
+
         with self.conn.cursor() as cur:
             # Single query to get columns + PK info
             cur.execute(
@@ -117,9 +120,36 @@ class SchemaIntrospector:
                 is_nullable=row[2] == "YES",
                 default_value=row[3],
                 is_primary_key=row[4],
+                is_unique=row[0] in unique_columns,
             )
             for row in rows
         ]
+
+    def get_unique_constraints(self, table_name: str) -> set[str]:
+        """
+        Get column names with UNIQUE constraints.
+
+        Args:
+            table_name: Table name
+
+        Returns:
+            Set of column names that have UNIQUE constraints
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT kcu.column_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                  AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'UNIQUE'
+                  AND tc.table_schema = %s
+                  AND tc.table_name = %s
+                """,
+                (self.schema, table_name),
+            )
+            return {row[0] for row in cur.fetchall()}
 
     def get_foreign_keys(self, table_name: str) -> list[ForeignKeyInfo]:
         """Get all foreign keys for a table."""
@@ -146,7 +176,12 @@ class SchemaIntrospector:
             rows = cur.fetchall()
 
         return [
-            ForeignKeyInfo(column=row[0], referenced_table=row[1], referenced_column=row[2])
+            ForeignKeyInfo(
+                column=row[0],
+                referenced_table=row[1],
+                referenced_column=row[2],
+                is_self_referencing=row[1] == table_name,
+            )
             for row in rows
         ]
 
@@ -161,8 +196,8 @@ class SchemaIntrospector:
         for table in tables:
             graph.add_table(table.name)
             for fk in table.foreign_keys:
-                # Skip self-references for now (Phase 2)
-                if fk.referenced_table != table.name:
+                # Skip self-references (don't add to dependency graph)
+                if not fk.is_self_referencing:
                     graph.add_dependency(table.name, fk.referenced_table)
 
         self._dependency_graph_cache = graph

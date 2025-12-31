@@ -97,3 +97,36 @@ class ForeignKeyResolutionError(FraiseQLDataError):
             f"2. Check that '{referenced_table}' has generated data\n"
             f"3. Verify foreign key constraint is correct"
         )
+
+
+class SelfReferenceError(FraiseQLDataError):
+    """Self-referencing foreign key cannot be auto-generated."""
+
+    def __init__(self, column: str, table: str, reason: str):
+        super().__init__(
+            f"Cannot auto-generate self-referencing FK '{column}' "
+            f"in '{table}': {reason}\n\n"
+            f"Suggestions:\n"
+            f"1. Make column nullable: ALTER TABLE {table} ALTER COLUMN {column} DROP NOT NULL\n"
+            f"2. Provide override:\n"
+            f"   builder.add('{table}', count=N, overrides={{\n"
+            f"       '{column}': lambda i: choose_parent_logic(i)\n"
+            f"   }})"
+        )
+
+
+class UniqueConstraintError(FraiseQLDataError):
+    """Could not generate unique value for UNIQUE column."""
+
+    def __init__(self, column: str, table: str, reason: str):
+        super().__init__(
+            f"Failed to generate unique value for column '{column}' "
+            f"in '{table}': {reason}\n\n"
+            f"Suggestions:\n"
+            f"1. Provide override with guaranteed uniqueness:\n"
+            f"   builder.add('{table}', count=N, overrides={{\n"
+            f"       '{column}': lambda i: f'unique_{{i}}'\n"
+            f"   }})\n"
+            f"2. Use UUID for UNIQUE columns:\n"
+            f"   '{column}': lambda: str(uuid.uuid4())"
+        )
