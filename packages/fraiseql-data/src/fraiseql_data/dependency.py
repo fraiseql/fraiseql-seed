@@ -1,6 +1,8 @@
-"""Dependency graph and topological sorting."""
+"""Dependency graph with better error handling."""
 
 from collections import defaultdict, deque
+
+from fraiseql_data.exceptions import CircularDependencyError, MissingDependencyError
 
 
 class DependencyGraph:
@@ -30,13 +32,17 @@ class DependencyGraph:
         """
         Sort tables in dependency order using Kahn's algorithm.
 
-        Returns tables in order such that dependencies come before dependents.
+        Returns:
+            Tables in order such that dependencies come before dependents.
+
+        Raises:
+            CircularDependencyError: If circular dependency detected
         """
         # Calculate in-degree (number of tables depending on this table)
-        in_degree: dict[str, int] = {table: 0 for table in self._tables}
+        in_degree: dict[str, int] = dict.fromkeys(self._tables, 0)
 
         for table in self._tables:
-            for dep in self._graph[table]:
+            for _dep in self._graph[table]:
                 in_degree[table] += 1
 
         # Start with tables that have no dependencies
@@ -58,6 +64,22 @@ class DependencyGraph:
         # Check for cycles
         if len(result) != len(self._tables):
             missing = self._tables - set(result)
-            raise ValueError(f"Circular dependency detected involving tables: {missing}")
+            raise CircularDependencyError(missing)
 
         return result
+
+    def validate_plan(self, tables: list[str]) -> None:
+        """
+        Validate that all dependencies are included in plan.
+
+        Args:
+            tables: List of table names in the seed plan
+
+        Raises:
+            MissingDependencyError: If a dependency is missing
+        """
+        table_set = set(tables)
+        for table in tables:
+            for dep in self._graph.get(table, set()):
+                if dep not in table_set:
+                    raise MissingDependencyError(table, dep)

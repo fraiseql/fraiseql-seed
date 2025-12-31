@@ -1,20 +1,41 @@
-"""Schema introspection using PostgreSQL information_schema."""
+"""Schema introspection with caching and optimized queries."""
 
 from psycopg import Connection
-from fraiseql_data.models import TableInfo, ColumnInfo, ForeignKeyInfo
+
 from fraiseql_data.dependency import DependencyGraph
+from fraiseql_data.exceptions import SchemaNotFoundError, TableNotFoundError
+from fraiseql_data.models import ColumnInfo, ForeignKeyInfo, TableInfo
 
 
 class SchemaIntrospector:
-    """Introspect PostgreSQL schema for tables, columns, and relationships."""
+    """Introspect PostgreSQL schema with caching."""
 
     def __init__(self, conn: Connection, schema: str):
         self.conn = conn
         self.schema = schema
-        self._cache: dict[str, TableInfo] = {}
+        self._table_cache: dict[str, TableInfo] = {}
+        self._dependency_graph_cache: DependencyGraph | None = None
+
+        # Validate schema exists
+        self._validate_schema()
+
+    def _validate_schema(self) -> None:
+        """Validate that schema exists in database."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = %s)",
+                (self.schema,),
+            )
+            exists = cur.fetchone()[0]
+            if not exists:
+                raise SchemaNotFoundError(self.schema)
 
     def get_tables(self) -> list[TableInfo]:
-        """Get all tables in schema."""
+        """Get all tables in schema (cached)."""
+        # If cache is populated, use it
+        if self._table_cache:
+            return list(self._table_cache.values())
+
         with self.conn.cursor() as cur:
             cur.execute(
                 """
@@ -28,70 +49,77 @@ class SchemaIntrospector:
             )
             rows = cur.fetchall()
 
+        # Populate cache
         return [self.get_table_info(row[0]) for row in rows]
 
     def get_table_info(self, table_name: str) -> TableInfo:
-        """Get complete table information."""
-        if table_name in self._cache:
-            return self._cache[table_name]
+        """Get complete table information (cached)."""
+        if table_name in self._table_cache:
+            return self._table_cache[table_name]
+
+        # Validate table exists
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT EXISTS(
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_schema = %s AND table_name = %s
+                )
+                """,
+                (self.schema, table_name),
+            )
+            exists = cur.fetchone()[0]
+            if not exists:
+                raise TableNotFoundError(table_name, self.schema)
 
         columns = self.get_columns(table_name)
         foreign_keys = self.get_foreign_keys(table_name)
 
         table_info = TableInfo(name=table_name, columns=columns, foreign_keys=foreign_keys)
-        self._cache[table_name] = table_info
+        self._table_cache[table_name] = table_info
         return table_info
 
     def get_columns(self, table_name: str) -> list[ColumnInfo]:
-        """Get all columns for a table."""
+        """Get all columns for a table (optimized single query)."""
         with self.conn.cursor() as cur:
-            # Get column info
+            # Single query to get columns + PK info
             cur.execute(
                 """
                 SELECT
                     c.column_name,
                     c.data_type,
                     c.is_nullable,
-                    c.column_default
+                    c.column_default,
+                    CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk
                 FROM information_schema.columns c
+                LEFT JOIN (
+                    SELECT kcu.column_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu
+                      ON tc.constraint_name = kcu.constraint_name
+                      AND tc.table_schema = kcu.table_schema
+                    WHERE tc.constraint_type = 'PRIMARY KEY'
+                      AND tc.table_schema = %s
+                      AND tc.table_name = %s
+                ) pk ON c.column_name = pk.column_name
                 WHERE c.table_schema = %s
                   AND c.table_name = %s
                 ORDER BY c.ordinal_position
                 """,
-                (self.schema, table_name),
+                (self.schema, table_name, self.schema, table_name),
             )
-            column_rows = cur.fetchall()
+            rows = cur.fetchall()
 
-            # Get primary key columns
-            cur.execute(
-                """
-                SELECT kcu.column_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu
-                  ON tc.constraint_name = kcu.constraint_name
-                  AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'PRIMARY KEY'
-                  AND tc.table_schema = %s
-                  AND tc.table_name = %s
-                """,
-                (self.schema, table_name),
+        return [
+            ColumnInfo(
+                name=row[0],
+                pg_type=row[1],
+                is_nullable=row[2] == "YES",
+                default_value=row[3],
+                is_primary_key=row[4],
             )
-            pk_columns = {row[0] for row in cur.fetchall()}
-
-        columns = []
-        for row in column_rows:
-            col_name, data_type, is_nullable, default_value = row
-            columns.append(
-                ColumnInfo(
-                    name=col_name,
-                    pg_type=data_type,
-                    is_nullable=is_nullable == "YES",
-                    is_primary_key=col_name in pk_columns,
-                    default_value=default_value,
-                )
-            )
-
-        return columns
+            for row in rows
+        ]
 
     def get_foreign_keys(self, table_name: str) -> list[ForeignKeyInfo]:
         """Get all foreign keys for a table."""
@@ -122,9 +150,10 @@ class SchemaIntrospector:
             for row in rows
         ]
 
-    def get_dependency_graph(self) -> "DependencyGraph":
-        """Build dependency graph for all tables in schema."""
-        from fraiseql_data.dependency import DependencyGraph
+    def get_dependency_graph(self) -> DependencyGraph:
+        """Build dependency graph (cached)."""
+        if self._dependency_graph_cache is not None:
+            return self._dependency_graph_cache
 
         tables = self.get_tables()
         graph = DependencyGraph()
@@ -132,11 +161,19 @@ class SchemaIntrospector:
         for table in tables:
             graph.add_table(table.name)
             for fk in table.foreign_keys:
-                graph.add_dependency(table.name, fk.referenced_table)
+                # Skip self-references for now (Phase 2)
+                if fk.referenced_table != table.name:
+                    graph.add_dependency(table.name, fk.referenced_table)
 
+        self._dependency_graph_cache = graph
         return graph
 
     def topological_sort(self) -> list[str]:
-        """Sort tables in dependency order using topological sort."""
+        """Sort tables in dependency order."""
         graph = self.get_dependency_graph()
         return graph.topological_sort()
+
+    def clear_cache(self) -> None:
+        """Clear cached introspection data."""
+        self._table_cache.clear()
+        self._dependency_graph_cache = None

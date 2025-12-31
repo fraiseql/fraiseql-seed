@@ -1,8 +1,7 @@
 """Tests for schema introspection functionality."""
 
-import pytest
-from psycopg import Connection
 from fraiseql_data.introspection import SchemaIntrospector
+from psycopg import Connection
 
 
 def test_get_tables(db_conn: Connection, test_schema: str):

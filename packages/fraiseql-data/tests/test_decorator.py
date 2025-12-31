@@ -1,8 +1,7 @@
 """Tests for @seed_data() pytest decorator."""
 
-import pytest
-from psycopg import Connection
 from fraiseql_data import seed_data
+from psycopg import Connection
 
 
 @seed_data("tb_manufacturer", count=5)

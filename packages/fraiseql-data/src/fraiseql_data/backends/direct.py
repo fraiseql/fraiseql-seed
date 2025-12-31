@@ -1,14 +1,28 @@
 """Direct INSERT backend - generates and executes SQL directly."""
 
 from typing import Any
+
 from psycopg import Connection
+
 from fraiseql_data.models import TableInfo
 
 
 class DirectBackend:
-    """Execute seed generation using direct INSERT statements."""
+    """
+    Execute seed generation using direct INSERT statements.
+
+    Uses PostgreSQL's RETURNING clause to capture auto-generated values
+    (pk_* IDENTITY columns, defaults) after insertion.
+    """
 
     def __init__(self, conn: Connection, schema: str):
+        """
+        Initialize backend.
+
+        Args:
+            conn: PostgreSQL connection
+            schema: Schema name for qualified table names
+        """
         self.conn = conn
         self.schema = schema
 

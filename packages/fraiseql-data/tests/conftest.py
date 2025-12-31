@@ -1,9 +1,9 @@
 """Pytest configuration and shared fixtures."""
 
-import pytest
 import psycopg
-from psycopg import Connection
+import pytest
 from fraiseql_data import SeedBuilder
+from psycopg import Connection
 
 
 @pytest.fixture
@@ -56,17 +56,20 @@ def test_schema(db_conn: Connection) -> str:
         """)
 
         # Create table with FK (Trinity pattern)
-        cur.execute(f"""
+        cur.execute(
+            f"""
             CREATE TABLE {schema_name}.tb_model (
                 pk_model INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 id UUID NOT NULL DEFAULT gen_random_uuid() UNIQUE,
                 identifier TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
                 description TEXT,
-                fk_manufacturer INTEGER NOT NULL REFERENCES {schema_name}.tb_manufacturer(pk_manufacturer),
+                fk_manufacturer INTEGER NOT NULL
+                    REFERENCES {schema_name}.tb_manufacturer(pk_manufacturer),
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
-        """)
+        """
+        )
 
         db_conn.commit()
 

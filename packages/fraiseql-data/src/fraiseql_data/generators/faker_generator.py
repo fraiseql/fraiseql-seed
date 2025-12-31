@@ -1,13 +1,25 @@
 """Faker-based data generator."""
 
 from typing import Any
+
 from faker import Faker
 
 fake = Faker()
 
 
 class FakerGenerator:
-    """Generate realistic data using Faker library."""
+    """
+    Generate realistic data using Faker library.
+
+    Uses intelligent column name detection and type-based fallbacks to auto-generate
+    realistic test data without configuration. Maps common column names like 'email',
+    'name', 'phone' to appropriate Faker methods.
+
+    Strategy:
+        1. Try column name mapping (e.g., 'email' → fake.email())
+        2. Fall back to PostgreSQL type (e.g., 'text' → fake.text())
+        3. Default to generic text if no match
+    """
 
     # Column name → Faker method mapping
     COLUMN_MAPPINGS = {
@@ -49,7 +61,24 @@ class FakerGenerator:
     }
 
     def generate(self, column_name: str, pg_type: str) -> Any:
-        """Generate data for a column based on name and type."""
+        """
+        Generate data for a column based on name and type.
+
+        Args:
+            column_name: Column name (e.g., 'email', 'name', 'phone')
+            pg_type: PostgreSQL type (e.g., 'text', 'integer', 'timestamptz')
+
+        Returns:
+            Generated value appropriate for the column
+
+        Examples:
+            >>> gen.generate('email', 'text')
+            'john.doe@example.com'
+            >>> gen.generate('age', 'integer')
+            42
+            >>> gen.generate('created_at', 'timestamptz')
+            datetime(2024, 1, 15, 10, 30, 0)
+        """
         # Try column name mapping first
         if column_name in self.COLUMN_MAPPINGS:
             return self.COLUMN_MAPPINGS[column_name]()

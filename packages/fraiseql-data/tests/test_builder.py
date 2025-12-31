@@ -1,8 +1,7 @@
 """Tests for SeedBuilder API."""
 
-import pytest
-from psycopg import Connection
 from fraiseql_data import SeedBuilder
+from psycopg import Connection
 
 
 def test_builder_initialization(db_conn: Connection, test_schema: str):

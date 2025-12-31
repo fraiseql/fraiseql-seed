@@ -1,6 +1,7 @@
 """Pytest decorators for seed data generation."""
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def seed_data(
