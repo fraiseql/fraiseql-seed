@@ -1,293 +1,86 @@
-# FraiseQL Seed - Trinity Pattern Seed Data Management
+# FraiseQL Seed - UUID Patterns & Data Generation
 
-**Automatic seed data management for FraiseQL projects with the Trinity identifier pattern.**
+A monorepo containing two complementary packages for PostgreSQL seed data management:
 
-## What is the Trinity Pattern?
-
-FraiseQL projects use three identifiers on every table:
-
-```sql
-CREATE TABLE catalog.tb_manufacturer (
-    pk_manufacturer INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,  -- Internal (fast joins)
-    id UUID DEFAULT gen_random_uuid() NOT NULL UNIQUE,                  -- Public (API)
-    identifier TEXT NOT NULL UNIQUE,                                    -- Business key
-    name TEXT,
-    ...
-);
-```
-
-This creates a challenge for seed data:
-- **Seed files** use UUIDs (easy cross-referencing)
-- **Production** uses INTEGER FKs (performance)
-- **Resolution needed**: UUID → INTEGER mapping
-
-## What Does This Tool Do?
-
-`fraiseql-seed` automatically:
-
-1. ✅ **Detects Trinity pattern** via schema introspection
-2. ✅ **Generates staging schema** with UUID-based FKs
-3. ✅ **Generates resolution functions** for UUID→INTEGER conversion
-4. ✅ **Validates** schema compatibility and data integrity
-5. ✅ **Loads seed data** with transaction-based rollback
-6. ✅ **Tests** resolution functions automatically
-
-## Installation
-
-```bash
-pip install fraiseql-seed
-```
+- **fraiseql-uuid**: Structured UUID pattern library with encode/decode support
+- **fraiseql-data**: Schema-aware seed data generation for PostgreSQL
 
 ## Quick Start
 
-```bash
-# Initialize configuration
-fraiseql-seed init
-
-# Generate staging schema and resolution functions
-fraiseql-seed generate
-
-# Validate everything
-fraiseql-seed validate
-
-# Load seed data
-fraiseql-seed load --environment local
-
-# Get info
-fraiseql-seed info
-```
-
-## Configuration
-
-Create `fraiseql-seed.toml` in your project root:
-
-```toml
-[database]
-url = "postgresql://localhost/myproject_local"
-schemas = ["catalog", "tenant", "management"]
-
-[trinity]
-pk_prefix = "pk_"
-id_column = "id"
-identifier_column = "identifier"
-
-[staging]
-schema = "prep_seed"
-table_prefix = "tb_"
-translation_prefix = "tl_"
-function_prefix = "fn_resolve_"
-
-[seed]
-data_dir = "db/seed/"
-environments = ["local", "test", "staging"]
-```
-
-## Features
-
-### Auto-Generation from Schema
-
-The tool introspects your production database schema and automatically generates:
-
-- **Staging tables** with UUID foreign keys
-- **Resolution functions** with FK mapping logic
-- **Master orchestration function** with dependency ordering
-- **Two-pass handling** for self-referencing tables
-
-### Validation Framework
-
-Catches bugs before deployment:
-
-- ✅ Schema compatibility checks
-- ✅ Column existence validation
-- ✅ FK target validation
-- ✅ Row count verification
-- ✅ Referential integrity checks
-
-### Transaction-Based Loading
-
-Safe seed data loading:
-
-- ✅ Automatic rollback on failure
-- ✅ Pre-execution validation
-- ✅ Post-execution verification
-- ✅ Progress reporting
-
-## Commands
-
-### `generate`
-
-Generate staging schema and resolution functions:
+### Installation
 
 ```bash
-fraiseql-seed generate                # Generate everything
-fraiseql-seed generate --tables-only  # Only staging tables
-fraiseql-seed generate --dry-run      # Preview without writing
-fraiseql-seed generate --validate     # Generate + validate
+# Install both packages
+pip install fraiseql-uuid fraiseql-data
+
+# Or install individually
+pip install fraiseql-uuid
+pip install fraiseql-data
 ```
 
-### `validate`
+### Usage
 
-Validate seeding system integrity:
+**fraiseql-uuid**: Generate pattern-based UUIDs
+
+```python
+from fraiseql_uuid import UUIDPatternRegistry
+
+registry = UUIDPatternRegistry.load("printoptim")
+gen = registry.get_generator("catalog.tb_manufacturer", table_code="013211")
+uuid = gen.generate(instance=1)
+# → "01321121-0000-0000-0000-000000000001"
+```
+
+**fraiseql-data**: Generate seed data
 
 ```bash
-fraiseql-seed validate                # Validate everything
-fraiseql-seed validate --schema-only  # Only schema
-fraiseql-seed validate --verbose      # Detailed output
+fraiseql-data seed catalog.tb_manufacturer \
+    --rows 10 \
+    --strategy realistic \
+    --uuid-pattern printoptim
 ```
 
-### `load`
+## Development
 
-Load seed data into database:
+### Setup
 
 ```bash
-fraiseql-seed load                          # Load to default DB
-fraiseql-seed load --environment staging   # Load staging seed
-fraiseql-seed load --dry-run                # Validate without loading
+git clone https://github.com/fraiseql/fraiseql-seed.git
+cd fraiseql-seed
+
+# Install dependencies
+uv sync
+
+# Run tests
+uv run pytest
 ```
 
-### `reset`
-
-Reset database to clean state:
-
-```bash
-fraiseql-seed reset                    # Reset with confirmation
-fraiseql-seed reset --force            # Skip confirmation
-fraiseql-seed reset --schema-only      # Schema only, no seed data
-```
-
-### `test`
-
-Test resolution functions:
-
-```bash
-fraiseql-seed test                     # Test all functions
-fraiseql-seed test --entity tb_machine # Test specific entity
-fraiseql-seed test --generate          # Generate test files
-```
-
-### `add`
-
-Scaffold new entity:
-
-```bash
-fraiseql-seed add tb_customer                  # Interactive
-fraiseql-seed add tb_customer --schema tenant  # Specify schema
-```
-
-### `info`
-
-Display system information:
-
-```bash
-fraiseql-seed info            # Summary
-fraiseql-seed info --verbose  # Detailed stats
-fraiseql-seed info --json     # JSON output
-```
-
-## Example Workflow
-
-### New FraiseQL Project
-
-```bash
-# 1. Install
-pip install fraiseql-seed
-
-# 2. Initialize
-fraiseql-seed init
-
-# 3. Generate staging schema
-fraiseql-seed generate
-
-# 4. Create seed data (SQL files in db/seed/)
-# ... edit seed files ...
-
-# 5. Load seed data
-fraiseql-seed load
-
-# 6. Validate
-fraiseql-seed validate
-```
-
-### Adding New Entity
-
-```bash
-# 1. Add production table to schema
-# ... edit schema files ...
-
-# 2. Add entity with tool
-fraiseql-seed add tb_customer --schema tenant
-
-# 3. Edit generated seed file
-# ... add seed data ...
-
-# 4. Regenerate staging schema
-fraiseql-seed generate
-
-# 5. Validate
-fraiseql-seed validate
-
-# 6. Load
-fraiseql-seed load
-```
-
-## Architecture
-
-### How It Works
+### Project Structure
 
 ```
-┌─────────────────────────────────────┐
-│ 1. Production Schema (Source)       │
-│    catalog.tb_manufacturer          │
-│    pk_manufacturer INTEGER (PK)     │
-│    id UUID                          │
-│    fk_type INTEGER → tb_type(pk)   │
-└──────────────┬──────────────────────┘
-               │ INTROSPECT
-               ▼
-┌─────────────────────────────────────┐
-│ 2. Generated Staging Schema         │
-│    prep_seed.tb_manufacturer        │
-│    id UUID (UNIQUE)                 │
-│    fk_type_id UUID (not INTEGER!)  │
-└──────────────┬──────────────────────┘
-               │ LOAD SEED DATA
-               ▼
-┌─────────────────────────────────────┐
-│ 3. Resolution Function              │
-│    fn_resolve_tb_manufacturer()     │
-│    • Converts fk_type_id UUID       │
-│      → fk_type INTEGER              │
-│    • Inserts into production        │
-└──────────────┬──────────────────────┘
-               │ EXECUTE
-               ▼
-┌─────────────────────────────────────┐
-│ 4. Production Data                  │
-│    catalog.tb_manufacturer          │
-│    pk_manufacturer = 1 (auto)       │
-│    id = 'uuid-from-seed'            │
-│    fk_type = 42 (resolved!)         │
-└─────────────────────────────────────┘
+fraiseql-seed/
+├── packages/
+│   ├── fraiseql-uuid/     # UUID pattern library
+│   └── fraiseql-data/     # Seed data generation
+├── shared/                # Shared patterns and schemas
+├── examples/              # Example integrations
+└── docs/                  # Documentation
 ```
 
-## Reference Implementation
+## Packages
 
-See [PrintOptim](https://github.com/fraiseql/printoptim) for reference implementation:
-- 221 tables with Trinity pattern
-- 222 auto-generated resolution functions
-- Comprehensive seed data examples
+| Package | Description | Status |
+|---------|-------------|--------|
+| fraiseql-uuid | UUID pattern library | Beta |
+| fraiseql-data | Seed data generation | Beta |
 
-## Contributing
+## Integration
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
+Works seamlessly with:
+- [confiture](https://github.com/fraiseql/confiture) - Database migrations & Trinity pattern
+- [specql](https://github.com/fraiseql/specql) - Code generation from YAML
+- [fraiseql](https://github.com/fraiseql/fraiseql) - GraphQL framework
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
-
-## Links
-
-- **Documentation**: https://fraiseql-seed.readthedocs.io
-- **Source Code**: https://github.com/fraiseql/fraiseql-seed
-- **Bug Reports**: https://github.com/fraiseql/fraiseql-seed/issues
-- **FraiseQL**: https://github.com/fraiseql/fraiseql
+MIT License - see [LICENSE](LICENSE) for details.

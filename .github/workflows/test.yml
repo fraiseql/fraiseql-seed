@@ -1,0 +1,54 @@
+name: Test All Packages
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Lint with ruff
+      run: |
+        uv run ruff check packages/
+
+    - name: Type check with mypy
+      run: |
+        uv run mypy packages/fraiseql-uuid/src
+        uv run mypy packages/fraiseql-data/src
+
+    - name: Test fraiseql-uuid
+      run: |
+        cd packages/fraiseql-uuid
+        uv run pytest --cov=fraiseql_uuid --cov-report=xml
+
+    - name: Test fraiseql-data
+      run: |
+        cd packages/fraiseql-data
+        uv run pytest --cov=fraiseql_data --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./packages/fraiseql-uuid/coverage.xml,./packages/fraiseql-data/coverage.xml
+        fail_ci_if_error: false

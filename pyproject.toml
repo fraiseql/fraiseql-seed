@@ -1,66 +1,96 @@
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+# fraiseql-seed - Monorepo Root Configuration
+# This is a workspace root that coordinates multiple packages
 
-[tool.poetry]
+[project]
 name = "fraiseql-seed"
 version = "0.1.0"
-description = "Seed data management tool for FraiseQL projects with Trinity identifier pattern"
-authors = ["FraiseQL Team <team@fraiseql.dev>"]
-readme = "README.md"
-license = "MIT"
-homepage = "https://github.com/fraiseql/fraiseql-seed"
-repository = "https://github.com/fraiseql/fraiseql-seed"
-documentation = "https://fraiseql-seed.readthedocs.io"
-keywords = ["fraiseql", "seed-data", "trinity-pattern", "database", "postgresql"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+description = "FraiseQL Seed - UUID patterns and data generation for PostgreSQL"
+authors = [
+    {name = "FraiseQL Team", email = "team@fraiseql.dev"}
 ]
-packages = [{include = "fraiseql_seed"}]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
 
-[tool.poetry.dependencies]
-python = "^3.10"
-psycopg = {extras = ["binary"], version = "^3.1"}
-click = "^8.1"
-jinja2 = "^3.1"
-pydantic = "^2.0"
-pydantic-settings = "^2.0"
-rich = "^13.0"
-tomli = {version = "^2.0", python = "<3.11"}
+# Include workspace packages for development
+dependencies = [
+    "fraiseql-uuid",
+    "fraiseql-data",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^7.4"
-pytest-asyncio = "^0.21"
-pytest-cov = "^4.1"
-black = "^23.0"
-ruff = "^0.1"
-mypy = "^1.7"
+# This is a workspace root, not a publishable package
+[tool.uv]
+managed = true
 
-[tool.poetry.scripts]
-fraiseql-seed = "fraiseql_seed.__main__:main"
+# Define workspace members
+[tool.uv.workspace]
+members = [
+    "packages/fraiseql-uuid",
+    "packages/fraiseql-data",
+]
 
+# Specify that these dependencies come from the workspace
+[tool.uv.sources]
+fraiseql-uuid = { workspace = true }
+fraiseql-data = { workspace = true }
+
+# Shared development dependencies
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+
+# Shared tool configurations
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/*/tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+disallow_untyped_defs = true
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = "test_*.py"
-python_functions = "test_*"
-addopts = "-v --cov=fraiseql_seed --cov-report=term-missing"
+[tool.coverage.run]
+source = ["packages/*/src"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

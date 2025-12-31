@@ -1,0 +1,50 @@
+# fraiseql-uuid - Structured UUID Pattern Library
+
+[project]
+name = "fraiseql-uuid"
+version = "0.1.0"
+description = "Structured UUID pattern library with encode/decode support"
+authors = [
+    {name = "FraiseQL Team", email = "team@fraiseql.dev"}
+]
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+keywords = ["uuid", "pattern", "encoding", "database", "testing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Database",
+]
+
+# Package dependencies
+dependencies = [
+    "pyyaml>=6.0",
+    "pydantic>=2.5.0",
+]
+
+[project.optional-dependencies]
+cli = [
+    "click>=8.1.0",
+    "rich>=13.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/fraiseql/fraiseql-seed"
+Documentation = "https://fraiseql-seed.readthedocs.io"
+Repository = "https://github.com/fraiseql/fraiseql-seed"
+"Bug Tracker" = "https://github.com/fraiseql/fraiseql-seed/issues"
+
+[project.scripts]
+fraiseql-uuid = "fraiseql_uuid.cli.main:cli [cli]"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fraiseql_uuid"]

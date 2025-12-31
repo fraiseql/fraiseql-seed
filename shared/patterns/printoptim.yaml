@@ -1,0 +1,41 @@
+# PrintOptim UUID Pattern Definition
+
+name: printoptim
+description: "PrintOptim Trinity pattern with table code, function, scenario, instance"
+format: "{table:06d}{seed_dir:02d}-{function:04d}-0000-{scenario:04d}-{instance:012d}"
+
+components:
+  table:
+    description: "Table number from schema file path"
+    type: integer
+    length: 6
+    required: true
+
+  seed_dir:
+    description: "Seed directory code"
+    type: integer
+    length: 2
+    default: 21
+    values:
+      21: "General backend seed"
+      22: "Function-specific mutation tests"
+      23: "GraphQL query tests"
+
+  function:
+    description: "Function number being tested"
+    type: integer
+    length: 4
+    default: 0
+
+  scenario:
+    description: "Test scenario code"
+    type: integer
+    length: 4
+    default: 0
+
+  instance:
+    description: "Sequential instance number"
+    type: integer
+    length: 12
+    required: true
+    auto_increment: true
