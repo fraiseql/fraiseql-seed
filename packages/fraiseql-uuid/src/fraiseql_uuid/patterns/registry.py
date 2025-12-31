@@ -18,7 +18,6 @@ class UUIDPatternRegistry:
 
     BUILTIN_PATTERNS: dict[str, type[Pattern]] = {
         "printoptim": PrintOptimPattern,
-        "fraiseql": PrintOptimPattern,  # Alias for consistency
     }
 
     def __init__(self) -> None:
@@ -30,7 +29,7 @@ class UUIDPatternRegistry:
         """Load a pattern by name.
 
         Args:
-            pattern_name: Name of pattern ('printoptim' or 'fraiseql')
+            pattern_name: Name of pattern ('printoptim')
             config: Optional pattern configuration
 
         Returns:
