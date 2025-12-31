@@ -176,8 +176,27 @@ class SeedBuilder:
         faker_gen = FakerGenerator()
         trinity_gen = TrinityGenerator(self.pattern, table_info.name)
 
+        # Warn about CHECK constraints
+        if table_info.check_constraints:
+            import logging
+
+            logger = logging.getLogger("fraiseql_data.builder")
+            for constraint in table_info.check_constraints:
+                logger.warning(
+                    f"Table '{table_info.name}' has CHECK constraint "
+                    f"'{constraint.constraint_name}': {constraint.check_clause}. "
+                    f"Auto-generated data may violate this constraint. "
+                    f"Consider providing overrides for affected columns."
+                )
+
         # Track UNIQUE column values to avoid duplicates
         unique_values: dict[str, set[Any]] = {}
+
+        # Track multi-column UNIQUE tuples to avoid duplicates
+        multi_unique_tuples: dict[str, set[tuple[Any, ...]]] = {}
+        for constraint in table_info.multi_unique_constraints:
+            # Use constraint name as key
+            multi_unique_tuples[constraint.constraint_name] = set()
 
         # Initialize current_table_rows if None
         if current_table_rows is None:
@@ -240,40 +259,80 @@ class SeedBuilder:
                         row[col.name] = override
                     continue
 
-                # Generate using Faker
+                # Generate using strategy
                 if plan.strategy == "faker":
                     value = faker_gen.generate(col.name, col.pg_type)
+                else:
+                    # Try custom generator from registry
+                    from fraiseql_data.generators.registry import get_generator
 
-                    # Handle UNIQUE constraint
-                    if col.is_unique and value is not None:
-                        if col.name not in unique_values:
-                            unique_values[col.name] = set()
+                    generator_class = get_generator(plan.strategy)
+                    if generator_class is None:
+                        raise ValueError(
+                            f"Unknown strategy '{plan.strategy}'. "
+                            f"Available: 'faker', or custom registered generators. "
+                            f"Register custom generator with register_generator()."
+                        )
+                    custom_gen = generator_class()
+                    value = custom_gen.generate(
+                        col.name,
+                        col.pg_type,
+                        instance=i,
+                        row_data=row,
+                        table_info=table_info,
+                    )
 
-                        # Retry if collision
-                        retries = 0
-                        while value in unique_values[col.name] and retries < MAX_UNIQUE_RETRIES:
-                            value = faker_gen.generate(col.name, col.pg_type)
-                            retries += 1
+                # Handle UNIQUE constraint (for both faker and custom generators)
+                if col.is_unique and value is not None:
+                    if col.name not in unique_values:
+                        unique_values[col.name] = set()
 
-                        if retries == MAX_UNIQUE_RETRIES:
-                            raise UniqueConstraintError(
-                                col.name,
-                                table_info.name,
-                                f"Could not generate unique value "
-                                f"after {MAX_UNIQUE_RETRIES} attempts",
-                            )
+                    # Retry if collision
+                    retries = 0
+                    while value in unique_values[col.name] and retries < MAX_UNIQUE_RETRIES:
+                        value = faker_gen.generate(col.name, col.pg_type)
+                        retries += 1
 
-                        unique_values[col.name].add(value)
+                    if retries == MAX_UNIQUE_RETRIES:
+                        raise UniqueConstraintError(
+                            col.name,
+                            table_info.name,
+                            f"Could not generate unique value "
+                            f"after {MAX_UNIQUE_RETRIES} attempts",
+                        )
 
-                    if value is None and not col.is_nullable and col.default_value is None:
-                        # Could not auto-generate required column
-                        raise ColumnGenerationError(col.name, col.pg_type, table_info.name)
-                    row[col.name] = value
+                    unique_values[col.name].add(value)
+
+                if value is None and not col.is_nullable and col.default_value is None:
+                    # Could not auto-generate required column
+                    raise ColumnGenerationError(col.name, col.pg_type, table_info.name)
+                row[col.name] = value
 
             # Add Trinity columns if table follows pattern
             if table_info.is_trinity:
                 trinity_data = trinity_gen.generate(i, **row)
                 row.update(trinity_data)
+
+            # Validate multi-column UNIQUE constraints
+            for constraint in table_info.multi_unique_constraints:
+                # Extract tuple of values for this constraint
+                tuple_values = tuple(row.get(col) for col in constraint.columns)
+
+                # Check if tuple already exists
+                if tuple_values in multi_unique_tuples[constraint.constraint_name]:
+                    # Collision detected
+                    from fraiseql_data.exceptions import MultiColumnUniqueConstraintError
+
+                    raise MultiColumnUniqueConstraintError(
+                        constraint.columns,
+                        table_info.name,
+                        f"Generated duplicate tuple {tuple_values} for "
+                        f"UNIQUE{constraint.columns}. Consider providing overrides "
+                        f"for one or more columns in this constraint.",
+                    )
+
+                # Track this tuple
+                multi_unique_tuples[constraint.constraint_name].add(tuple_values)
 
             rows.append(row)
 

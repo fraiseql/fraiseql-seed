@@ -44,9 +44,6 @@ def test_check_constraint_introspection(db_conn: Connection, test_schema: str):
     assert price_check is not None, "Price CHECK constraint not found"
     assert ">" in price_check.check_clause or "0" in price_check.check_clause
 
-    # This test will fail until CHECK introspection is implemented
-    raise AssertionError("CHECK constraint introspection not yet implemented")
-
 
 def test_check_constraint_warning(db_conn: Connection, test_schema: str, caplog):
     """Test warning emitted for CHECK constraint without override."""
@@ -89,9 +86,6 @@ def test_check_constraint_warning(db_conn: Connection, test_schema: str, caplog)
             break
 
     assert warning_found, "Should emit warning for CHECK constraint"
-
-    # This test will fail until CHECK warnings are implemented
-    raise AssertionError("CHECK constraint warnings not yet implemented")
 
 
 def test_check_constraint_with_override(db_conn: Connection, test_schema: str):
@@ -145,8 +139,3 @@ def test_check_constraint_with_override(db_conn: Connection, test_schema: str):
     with db_conn.cursor() as cur:
         cur.execute(f"SELECT COUNT(*) FROM {test_schema}.tb_product")
         assert cur.fetchone()[0] == 50
-
-    # This test will PASS if user provides correct overrides
-    # The feature is: warn user, let them provide overrides
-    # This test will fail until CHECK constraint handling is complete
-    raise AssertionError("CHECK constraint handling not yet fully implemented")

@@ -45,6 +45,34 @@ class ForeignKeyInfo:
 
 
 @dataclass
+class MultiColumnUniqueConstraint:
+    """
+    Multi-column UNIQUE constraint metadata.
+
+    Attributes:
+        columns: Tuple of column names in the constraint (e.g., ("year", "month", "code"))
+        constraint_name: PostgreSQL constraint name
+    """
+
+    columns: tuple[str, ...]
+    constraint_name: str
+
+
+@dataclass
+class CheckConstraint:
+    """
+    CHECK constraint metadata.
+
+    Attributes:
+        constraint_name: PostgreSQL constraint name
+        check_clause: CHECK constraint condition (e.g., "price > 0")
+    """
+
+    constraint_name: str
+    check_clause: str
+
+
+@dataclass
 class TableInfo:
     """
     Table metadata with Trinity pattern detection.
@@ -60,8 +88,10 @@ class TableInfo:
     name: str
     columns: list[ColumnInfo]
     foreign_keys: list[ForeignKeyInfo] = field(default_factory=list)
-    multi_unique_constraints: list[Any] = field(default_factory=list)  # Stub for Phase 3
-    check_constraints: list[Any] = field(default_factory=list)  # Stub for Phase 3
+    multi_unique_constraints: list["MultiColumnUniqueConstraint"] = field(
+        default_factory=list
+    )
+    check_constraints: list["CheckConstraint"] = field(default_factory=list)
 
     @property
     def is_trinity(self) -> bool:
@@ -217,12 +247,85 @@ class Seeds:
         raise AttributeError(f"No table '{name}' in seeds")
 
     def to_json(self, file_path: Any | None = None, indent: int = 2) -> str | None:
-        """Stub - export to JSON not yet implemented."""
-        raise NotImplementedError("Export to JSON not yet implemented")
+        """
+        Export seed data to JSON format.
+
+        Args:
+            file_path: Optional file path to write JSON to (str or Path)
+            indent: JSON indentation (default: 2)
+
+        Returns:
+            JSON string if file_path is None, otherwise None
+
+        Example:
+            >>> seeds = builder.execute()
+            >>> # Get JSON string
+            >>> json_str = seeds.to_json()
+            >>> # Or write to file
+            >>> seeds.to_json("seed_data.json")
+        """
+        import json
+        from pathlib import Path
+
+        # Convert SeedRow objects to dicts
+        data = {
+            table_name: [row._data for row in rows]
+            for table_name, rows in self._tables.items()
+        }
+
+        # Serialize with default=str to handle UUID, datetime, etc.
+        json_str = json.dumps(data, indent=indent, default=str)
+
+        if file_path:
+            path = Path(file_path)
+            path.write_text(json_str)
+            return None
+
+        return json_str
 
     def to_csv(self, table_name: str, file_path: Any) -> None:
-        """Stub - export to CSV not yet implemented."""
-        raise NotImplementedError("Export to CSV not yet implemented")
+        """
+        Export single table to CSV format.
+
+        Args:
+            table_name: Table name to export
+            file_path: CSV file path (str or Path)
+
+        Raises:
+            ValueError: If table not in seeds
+
+        Example:
+            >>> seeds = builder.execute()
+            >>> seeds.to_csv("tb_manufacturer", "manufacturers.csv")
+        """
+        import csv
+        from pathlib import Path
+
+        if table_name not in self._tables:
+            available = ", ".join(self._tables.keys())
+            raise ValueError(
+                f"Table '{table_name}' not in seeds. "
+                f"Available tables: {available}"
+            )
+
+        rows = self._tables[table_name]
+        if not rows:
+            # Empty table - write headers only
+            return
+
+        path = Path(file_path)
+        with path.open("w", newline="") as f:
+            fieldnames = list(rows[0]._data.keys())
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for row in rows:
+                # Convert all values to strings for CSV
+                csv_row = {
+                    k: str(v) if v is not None else ""
+                    for k, v in row._data.items()
+                }
+                writer.writerow(csv_row)
 
 
 @dataclass

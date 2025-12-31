@@ -40,27 +40,20 @@ def test_register_custom_generator(db_conn: Connection, test_schema: str):
         )
         db_conn.commit()
 
-    # Use custom generator for sku column
+    # Use custom generator via strategy parameter
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_product",
-            count=10,
-            overrides={"sku": lambda: SKUGenerator().generate("sku", "text", instance=1)},
-        ).execute()
-    )
+    seeds = builder.add("tb_product", count=10, strategy="sku").execute()
 
     # Verify custom SKU format
     products = seeds.tb_product
     assert len(products) == 10
-    # Note: This simple test just verifies the generator works
-    # Better test: use strategy="sku" (requires builder support)
+
+    # Verify SKU format matches expected pattern
+    for i, product in enumerate(products, start=1):
+        assert product.sku == f"SKU-{i:06d}", f"Expected SKU-{i:06d}, got {product.sku}"
 
     # Cleanup
     clear_generators()
-
-    # This test will fail until plugin system is implemented
-    raise AssertionError("Generator plugin system not yet implemented")
 
 
 def test_custom_generator_with_context(db_conn: Connection, test_schema: str):
@@ -114,9 +107,6 @@ def test_custom_generator_with_context(db_conn: Connection, test_schema: str):
     # Cleanup
     clear_generators()
 
-    # This test will fail until context passing is implemented
-    raise AssertionError("Generator context passing not yet implemented")
-
 
 def test_list_registered_generators():
     """Test listing all registered generators."""
@@ -144,6 +134,3 @@ def test_list_registered_generators():
     # Clear and verify empty
     clear_generators()
     assert list_generators() == []
-
-    # This test will fail until registry is implemented
-    raise AssertionError("Generator registry not yet implemented")

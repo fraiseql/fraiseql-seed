@@ -37,9 +37,6 @@ def test_multi_column_unique_two_columns(db_conn: Connection, test_schema: str):
     # Verify all tuples are unique
     assert len(tuples) == len(set(tuples)), "Found duplicate (category, code) tuples"
 
-    # This test will fail until multi-column UNIQUE is implemented
-    raise AssertionError("Multi-column UNIQUE not yet implemented")
-
 
 def test_multi_column_unique_three_columns(db_conn: Connection, test_schema: str):
     """Test UNIQUE(col1, col2, col3) constraint."""
@@ -84,9 +81,6 @@ def test_multi_column_unique_three_columns(db_conn: Connection, test_schema: str
 
     # Verify all tuples are unique
     assert len(tuples) == len(set(tuples)), "Found duplicate (year, month, code) tuples"
-
-    # This test will fail until multi-column UNIQUE is implemented
-    raise AssertionError("Multi-column UNIQUE (3 columns) not yet implemented")
 
 
 def test_multiple_multi_column_unique_constraints(
@@ -136,6 +130,3 @@ def test_multiple_multi_column_unique_constraints(
     # Check second constraint: UNIQUE(year, month, customer_code)
     tuples2 = [(o.year, o.month, o.customer_code) for o in orders]
     assert len(tuples2) == len(set(tuples2)), "Duplicate (year, month, customer_code)"
-
-    # This test will fail until multiple multi-column UNIQUE is supported
-    raise AssertionError("Multiple multi-column UNIQUE constraints not yet implemented")

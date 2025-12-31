@@ -33,9 +33,6 @@ def test_export_to_json(db_conn: Connection, test_schema: str, tmp_path: Path):
     assert "identifier" in first_row
     assert "name" in first_row
 
-    # This test will fail until to_json() is implemented
-    raise AssertionError("to_json() not yet implemented")
-
 
 def test_export_to_csv(db_conn: Connection, test_schema: str, tmp_path: Path):
     """Test exporting single table to CSV."""
@@ -65,9 +62,6 @@ def test_export_to_csv(db_conn: Connection, test_schema: str, tmp_path: Path):
     assert "id" in first_row
     assert "identifier" in first_row
     assert "name" in first_row
-
-    # This test will fail until to_csv() is implemented
-    raise AssertionError("to_csv() not yet implemented")
 
 
 def test_export_handles_uuids_and_datetimes(
@@ -111,6 +105,3 @@ def test_export_handles_uuids_and_datetimes(
     # Datetimes should be strings
     if first_event.get("event_date"):
         assert isinstance(first_event["event_date"], str)
-
-    # This test will fail until UUID/datetime serialization is handled
-    raise AssertionError("UUID/datetime serialization not yet implemented")

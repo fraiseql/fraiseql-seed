@@ -8,7 +8,7 @@ All exceptions inherit from FraiseQLDataError and provide:
 
 Exception Categories:
 - Schema/Table errors: SchemaNotFoundError, TableNotFoundError
-- Generation errors: ColumnGenerationError, UniqueConstraintError
+- Generation errors: ColumnGenerationError, UniqueConstraintError, MultiColumnUniqueConstraintError
 - Dependency errors: CircularDependencyError, MissingDependencyError
 - FK errors: ForeignKeyResolutionError, SelfReferenceError
 """
@@ -142,4 +142,23 @@ class UniqueConstraintError(FraiseQLDataError):
             f"   }})\n"
             f"2. Use UUID for UNIQUE columns:\n"
             f"   '{column}': lambda: str(uuid.uuid4())"
+        )
+
+
+class MultiColumnUniqueConstraintError(FraiseQLDataError):
+    """Could not satisfy multi-column UNIQUE constraint."""
+
+    def __init__(self, columns: tuple[str, ...], table: str, reason: str):
+        columns_str = ", ".join(columns)
+        super().__init__(
+            f"Failed to satisfy multi-column UNIQUE constraint "
+            f"UNIQUE({columns_str}) in '{table}': {reason}\n\n"
+            f"Suggestions:\n"
+            f"1. Provide overrides for one or more columns to ensure unique tuples:\n"
+            f"   builder.add('{table}', count=N, overrides={{\n"
+            f"       '{columns[0]}': lambda i: f'value_{{i}}',\n"
+            f"       # or '{columns[1] if len(columns) > 1 else 'other'}': lambda i: i % 10\n"
+            f"   }})\n\n"
+            f"2. Reduce count if generating many rows with limited variety\n\n"
+            f"3. Use custom generator for more control over value distribution"
         )

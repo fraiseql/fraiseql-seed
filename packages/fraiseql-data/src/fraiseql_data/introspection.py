@@ -4,7 +4,13 @@ from psycopg import Connection
 
 from fraiseql_data.dependency import DependencyGraph
 from fraiseql_data.exceptions import SchemaNotFoundError, TableNotFoundError
-from fraiseql_data.models import ColumnInfo, ForeignKeyInfo, TableInfo
+from fraiseql_data.models import (
+    CheckConstraint,
+    ColumnInfo,
+    ForeignKeyInfo,
+    MultiColumnUniqueConstraint,
+    TableInfo,
+)
 
 
 class SchemaIntrospector:
@@ -74,8 +80,16 @@ class SchemaIntrospector:
 
         columns = self.get_columns(table_name)
         foreign_keys = self.get_foreign_keys(table_name)
+        multi_unique_constraints = self.get_multi_column_unique_constraints(table_name)
+        check_constraints = self.get_check_constraints(table_name)
 
-        table_info = TableInfo(name=table_name, columns=columns, foreign_keys=foreign_keys)
+        table_info = TableInfo(
+            name=table_name,
+            columns=columns,
+            foreign_keys=foreign_keys,
+            multi_unique_constraints=multi_unique_constraints,
+            check_constraints=check_constraints,
+        )
         self._table_cache[table_name] = table_info
         return table_info
 
@@ -165,6 +179,128 @@ class SchemaIntrospector:
                 (self.schema, table_name),
             )
             return {row[0] for row in cur.fetchall()}
+
+    def get_multi_column_unique_constraints(
+        self, table_name: str
+    ) -> list["MultiColumnUniqueConstraint"]:
+        """
+        Get multi-column UNIQUE constraints.
+
+        Queries PostgreSQL's information_schema to find UNIQUE constraints
+        that span multiple columns (e.g., UNIQUE(year, month, code)).
+
+        Args:
+            table_name: Table name
+
+        Returns:
+            List of MultiColumnUniqueConstraint objects, each containing:
+            - columns: tuple of column names in the constraint
+            - constraint_name: PostgreSQL constraint name
+
+        Example:
+            >>> introspector = SchemaIntrospector(conn, "public")
+            >>> constraints = introspector.get_multi_column_unique_constraints("tb_order")
+            >>> for constraint in constraints:
+            >>>     print(f"UNIQUE{constraint.columns}")
+            UNIQUE('customer_code', 'order_number')
+            UNIQUE('year', 'month', 'customer_code')
+
+        Note:
+            Only returns constraints with 2+ columns. Single-column UNIQUE
+            constraints are handled by get_unique_constraints().
+        """
+        with self.conn.cursor() as cur:
+            # Get all UNIQUE constraints with their columns
+            # Use string_agg for simplicity to avoid array parsing issues
+            cur.execute(
+                """
+                SELECT
+                    tc.constraint_name,
+                    string_agg(kcu.column_name, ',' ORDER BY kcu.ordinal_position) as columns
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                  ON tc.constraint_name = kcu.constraint_name
+                  AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'UNIQUE'
+                  AND tc.table_schema = %s
+                  AND tc.table_name = %s
+                GROUP BY tc.constraint_name
+                HAVING COUNT(*) > 1
+                """,
+                (self.schema, table_name),
+            )
+
+            constraints = []
+            for row in cur.fetchall():
+                constraint_name = row[0]
+                # Split comma-separated column names into tuple
+                columns = tuple(row[1].split(","))
+                constraints.append(
+                    MultiColumnUniqueConstraint(
+                        columns=columns, constraint_name=constraint_name
+                    )
+                )
+
+            return constraints
+
+    def get_check_constraints(self, table_name: str) -> list["CheckConstraint"]:
+        """
+        Get CHECK constraints for a table.
+
+        Queries PostgreSQL's information_schema to find CHECK constraints
+        (e.g., CHECK (price > 0), CHECK (status IN ('active', 'inactive'))).
+
+        Args:
+            table_name: Table name
+
+        Returns:
+            List of CheckConstraint objects, each containing:
+            - constraint_name: PostgreSQL constraint name
+            - check_clause: CHECK constraint condition
+
+        Example:
+            >>> introspector = SchemaIntrospector(conn, "public")
+            >>> checks = introspector.get_check_constraints("tb_product")
+            >>> for check in checks:
+            >>>     print(f"{check.constraint_name}: {check.check_clause}")
+            tb_product_price_check: (price > 0)
+
+        Note:
+            CHECK constraints are difficult to satisfy automatically, so
+            the builder will emit warnings when they are detected without
+            user-provided overrides.
+        """
+        with self.conn.cursor() as cur:
+            # Get CHECK constraints
+            cur.execute(
+                """
+                SELECT
+                    con.conname AS constraint_name,
+                    pg_get_constraintdef(con.oid) AS check_clause
+                FROM pg_constraint con
+                JOIN pg_namespace nsp ON con.connamespace = nsp.oid
+                JOIN pg_class cls ON con.conrelid = cls.oid
+                WHERE con.contype = 'c'
+                  AND nsp.nspname = %s
+                  AND cls.relname = %s
+                """,
+                (self.schema, table_name),
+            )
+
+            constraints = []
+            for row in cur.fetchall():
+                constraint_name = row[0]
+                check_clause = row[1]
+                # Remove "CHECK " prefix from clause if present
+                if check_clause.startswith("CHECK "):
+                    check_clause = check_clause[6:]
+                constraints.append(
+                    CheckConstraint(
+                        constraint_name=constraint_name, check_clause=check_clause
+                    )
+                )
+
+            return constraints
 
     def get_foreign_keys(self, table_name: str) -> list[ForeignKeyInfo]:
         """Get all foreign keys for a table."""
