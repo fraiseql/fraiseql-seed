@@ -24,11 +24,6 @@ class UUIDComponents:
 class Pattern(ABC):
     """Base class for UUID patterns."""
 
-    def __init__(self, config: dict[str, Any]):
-        """Initialize pattern with configuration."""
-        self.config = config
-        self.name = config.get("name", "unknown")
-
     @abstractmethod
     def generate(self, **kwargs: Any) -> str:
         """Generate UUID from components.

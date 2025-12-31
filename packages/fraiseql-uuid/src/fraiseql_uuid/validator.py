@@ -44,7 +44,7 @@ class UUIDValidator:
         if not self.pattern.validate_format(uuid):
             return ValidationResult(
                 valid=False,
-                error=f"Invalid {self.pattern.name} UUID format: {uuid}"
+                error=f"Invalid UUID format: {uuid}"
             )
 
         # TODO: Add component-level validation

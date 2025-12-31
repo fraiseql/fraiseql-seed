@@ -1,7 +1,6 @@
-# PrintOptim UUID Pattern Definition (UUID v4 Compliant)
+# UUID Pattern Definition (UUID v4 Compliant)
 
-name: printoptim
-description: "PrintOptim Trinity pattern - UUID v4 compliant with encoded metadata"
+description: "UUID v4 compliant pattern with encoded metadata for FraiseQL ecosystem"
 
 # Notation for code/specs: {table:6}{type:2}-{func:4}-4{scen:3}-8{scen:1}{test:2}-{inst:12}
 # Notation for docs:       TTTTTTDD-FFFF-4SSS-8STT-IIIIIIIIIIII

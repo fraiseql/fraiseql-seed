@@ -1,13 +1,14 @@
-"""PrintOptim UUID pattern implementation (UUID v4 compliant)."""
+"""UUID v4 compliant pattern with encoded metadata."""
 
 import re
 from typing import Any
 
-from fraiseql_uuid.patterns.base import Pattern, UUIDComponents
+from fraiseql_uuid.patterns.base import Pattern as BasePattern
+from fraiseql_uuid.patterns.base import UUIDComponents
 
 
-class PrintOptimPattern(Pattern):
-    """PrintOptim Trinity pattern - UUID v4 compliant.
+class Pattern(BasePattern):
+    """UUID v4 compliant pattern with encoded metadata.
 
     Format (code): {table:6}{type:2}-{func:4}-4{scen:3}-8{scen:1}{test:2}-{inst:12}
     Format (docs): TTTTTTDD-FFFF-4SSS-8STT-IIIIIIIIIIII
@@ -32,7 +33,7 @@ class PrintOptimPattern(Pattern):
     )
 
     def generate(self, **kwargs: Any) -> str:
-        """Generate UUID v4 compliant PrintOptim UUID.
+        """Generate UUID v4 compliant UUID with encoded metadata.
 
         Args:
             table_code: Table code (6 digits)
@@ -73,7 +74,7 @@ class PrintOptimPattern(Pattern):
         return f"{part1}-{part2}-{part3}-{part4}-{part5}"
 
     def decode(self, uuid: str) -> UUIDComponents:
-        """Decode UUID v4 compliant PrintOptim UUID.
+        """Decode UUID v4 compliant UUID with encoded metadata.
 
         Args:
             uuid: UUID string
@@ -88,7 +89,7 @@ class PrintOptimPattern(Pattern):
         """
         match = self.PATTERN_REGEX.match(uuid)
         if not match:
-            raise ValueError(f"Invalid PrintOptim UUID format: {uuid}")
+            raise ValueError(f"Invalid UUID format: {uuid}")
 
         table_code, seed_dir, function, scen_high, scen_low, test_case, instance = match.groups()
 
@@ -108,5 +109,5 @@ class PrintOptimPattern(Pattern):
         )
 
     def validate_format(self, uuid: str) -> bool:
-        """Validate PrintOptim UUID format."""
+        """Validate UUID format."""
         return bool(self.PATTERN_REGEX.match(uuid))
