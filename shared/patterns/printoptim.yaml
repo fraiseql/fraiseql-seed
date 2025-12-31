@@ -1,41 +1,81 @@
-# PrintOptim UUID Pattern Definition
+# PrintOptim UUID Pattern Definition (UUID v4 Compliant)
 
 name: printoptim
-description: "PrintOptim Trinity pattern with table code, function, scenario, instance"
-format: "{table:06d}{seed_dir:02d}-{function:04d}-0000-{scenario:04d}-{instance:012d}"
+description: "PrintOptim Trinity pattern - UUID v4 compliant with encoded metadata"
+
+# Notation for code/specs: {table:6}{type:2}-{func:4}-4{scen:3}-8{scen:1}{test:2}-{inst:12}
+# Notation for docs:       TTTTTTDD-FFFF-4SSS-8STT-IIIIIIIIIIII
+format_spec: "{table:6}{type:2}-{func:4}-4{scen:3}-8{scen:1}{test:2}-{inst:12}"
+format_docs: "TTTTTTDD-FFFF-4SSS-8STT-IIIIIIIIIIII"
+
+example: "01234521-0042-4100-8015-000000000001"
 
 components:
   table:
-    description: "Table number from schema file path"
+    description: "Table/Entity code from schema"
+    symbol: "T"
     type: integer
     length: 6
     required: true
+    position: "segment 1 (first 6 digits)"
 
   seed_dir:
-    description: "Seed directory code"
+    description: "Seed directory / test type code"
+    symbol: "D"
     type: integer
     length: 2
     default: 21
+    position: "segment 1 (last 2 digits)"
     values:
       21: "General backend seed"
       22: "Function-specific mutation tests"
       23: "GraphQL query tests"
+      00: "Staging/production seed"
 
   function:
     description: "Function number being tested"
+    symbol: "F"
     type: integer
     length: 4
     default: 0
+    position: "segment 2"
+
+  version:
+    description: "UUID v4 version bit (fixed)"
+    symbol: "4"
+    type: fixed
+    value: 4
+    position: "segment 3 (first digit)"
 
   scenario:
-    description: "Test scenario code"
+    description: "Test scenario code (split across segments for v4 compliance)"
+    symbol: "S"
     type: integer
     length: 4
     default: 0
+    position: "segment 3 (digits 2-4) + segment 4 (digit 2)"
+    note: "Split as 3+1 to accommodate version/variant bits"
+
+  variant:
+    description: "UUID variant bit (fixed)"
+    symbol: "8"
+    type: fixed
+    value: 8
+    position: "segment 4 (first digit)"
+
+  test_case:
+    description: "Test case number (for multiple tests per scenario)"
+    symbol: "T"
+    type: integer
+    length: 2
+    default: 0
+    position: "segment 4 (last 2 digits)"
 
   instance:
     description: "Sequential instance number"
+    symbol: "I"
     type: integer
     length: 12
     required: true
     auto_increment: true
+    position: "segment 5"

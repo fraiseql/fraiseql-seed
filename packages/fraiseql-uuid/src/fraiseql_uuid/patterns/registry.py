@@ -7,17 +7,18 @@ if TYPE_CHECKING:
 
 from fraiseql_uuid.patterns.base import Pattern
 from fraiseql_uuid.patterns.printoptim import PrintOptimPattern
-from fraiseql_uuid.patterns.sequential import SequentialPattern
-from fraiseql_uuid.patterns.specql import SpecQLPattern
 
 
 class UUIDPatternRegistry:
-    """Registry for UUID patterns."""
+    """Registry for UUID patterns.
+
+    Currently supports one unified UUID v4 compliant pattern that works
+    for all FraiseQL/PrintOptim use cases.
+    """
 
     BUILTIN_PATTERNS: dict[str, type[Pattern]] = {
         "printoptim": PrintOptimPattern,
-        "specql": SpecQLPattern,
-        "sequential": SequentialPattern,
+        "fraiseql": PrintOptimPattern,  # Alias for consistency
     }
 
     def __init__(self) -> None:
@@ -29,14 +30,24 @@ class UUIDPatternRegistry:
         """Load a pattern by name.
 
         Args:
-            pattern_name: Name of pattern (printoptim, specql, sequential)
+            pattern_name: Name of pattern ('printoptim' or 'fraiseql')
             config: Optional pattern configuration
 
         Returns:
-            Pattern instance
+            Pattern instance (UUID v4 compliant)
+
+        Raises:
+            ValueError: If pattern name is not recognized
+
+        Example:
+            >>> pattern = UUIDPatternRegistry.load('printoptim')
+            >>> uuid = pattern.generate(table_code='012345', instance=1)
         """
         if pattern_name not in cls.BUILTIN_PATTERNS:
-            raise ValueError(f"Unknown pattern: {pattern_name}")
+            raise ValueError(
+                f"Unknown pattern: {pattern_name}. "
+                f"Available: {', '.join(cls.BUILTIN_PATTERNS.keys())}"
+            )
 
         pattern_class = cls.BUILTIN_PATTERNS[pattern_name]
         pattern_config = config or {"name": pattern_name}
