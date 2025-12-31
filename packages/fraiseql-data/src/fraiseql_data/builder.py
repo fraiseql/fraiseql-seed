@@ -16,6 +16,9 @@ from fraiseql_data.generators import FakerGenerator, TrinityGenerator
 from fraiseql_data.introspection import SchemaIntrospector
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
 
+# Constants for generation logic
+MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
+
 
 class SeedBuilder:
     """Declarative API for building and executing seed data plans."""
@@ -247,17 +250,17 @@ class SeedBuilder:
                             unique_values[col.name] = set()
 
                         # Retry if collision
-                        MAX_RETRIES = 10
                         retries = 0
-                        while value in unique_values[col.name] and retries < MAX_RETRIES:
+                        while value in unique_values[col.name] and retries < MAX_UNIQUE_RETRIES:
                             value = faker_gen.generate(col.name, col.pg_type)
                             retries += 1
 
-                        if retries == MAX_RETRIES:
+                        if retries == MAX_UNIQUE_RETRIES:
                             raise UniqueConstraintError(
                                 col.name,
                                 table_info.name,
-                                "Could not generate unique value after 10 attempts",
+                                f"Could not generate unique value "
+                                f"after {MAX_UNIQUE_RETRIES} attempts",
                             )
 
                         unique_values[col.name].add(value)

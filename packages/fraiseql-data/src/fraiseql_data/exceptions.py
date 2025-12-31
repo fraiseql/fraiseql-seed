@@ -1,4 +1,17 @@
-"""Custom exceptions with helpful error messages."""
+"""
+Custom exceptions with helpful error messages.
+
+All exceptions inherit from FraiseQLDataError and provide:
+- Clear error descriptions
+- Actionable suggestions for resolving the issue
+- Example code snippets when applicable
+
+Exception Categories:
+- Schema/Table errors: SchemaNotFoundError, TableNotFoundError
+- Generation errors: ColumnGenerationError, UniqueConstraintError
+- Dependency errors: CircularDependencyError, MissingDependencyError
+- FK errors: ForeignKeyResolutionError, SelfReferenceError
+"""
 
 
 class FraiseQLDataError(Exception):

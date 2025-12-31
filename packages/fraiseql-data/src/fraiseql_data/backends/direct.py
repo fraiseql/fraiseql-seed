@@ -6,6 +6,9 @@ from psycopg import Connection
 
 from fraiseql_data.models import TableInfo
 
+# Default batch size for bulk inserts (balance performance vs query size)
+DEFAULT_BATCH_SIZE = 100
+
 
 class DirectBackend:
     """
@@ -56,7 +59,7 @@ class DirectBackend:
         self,
         table_info: TableInfo,
         rows: list[dict[str, Any]],
-        batch_size: int = 100,
+        batch_size: int = DEFAULT_BATCH_SIZE,
     ) -> list[dict[str, Any]]:
         """
         Insert rows using multi-row INSERT for better performance.

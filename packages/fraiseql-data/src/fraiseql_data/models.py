@@ -114,8 +114,23 @@ class TableInfo:
         """
         Get all self-referencing foreign keys.
 
+        Self-referencing FKs are relationships where a table references itself,
+        commonly used for hierarchical data (e.g., parent_id -> pk_category).
+
+        These FKs are handled specially during seed generation:
+        - Not included in dependency graph (avoid circular dependencies)
+        - Require one-by-one insertion to track previous rows
+        - First row gets NULL (if nullable), subsequent rows pick random parent
+
         Returns:
             List of ForeignKeyInfo objects where is_self_referencing is True
+
+        Example:
+            >>> # Table with parent_category FK to itself
+            >>> table_info = introspector.get_table_info("tb_category")
+            >>> self_refs = table_info.get_self_referencing_fks()
+            >>> if self_refs:
+            >>>     print(f"Self-referencing FK: {self_refs[0].column}")
         """
         return [fk for fk in self.foreign_keys if fk.is_self_referencing]
 

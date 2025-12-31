@@ -129,11 +129,26 @@ class SchemaIntrospector:
         """
         Get column names with UNIQUE constraints.
 
+        Queries PostgreSQL's information_schema to find columns with UNIQUE
+        constraints. This information is used during seed generation to:
+        - Detect collisions and retry value generation
+        - Prevent duplicate key violations
+
         Args:
             table_name: Table name
 
         Returns:
             Set of column names that have UNIQUE constraints
+
+        Example:
+            >>> introspector = SchemaIntrospector(conn, "public")
+            >>> unique_cols = introspector.get_unique_constraints("tb_user")
+            >>> if "email" in unique_cols:
+            >>>     print("Email column has UNIQUE constraint")
+
+        Note:
+            This does NOT include PRIMARY KEY columns (they're already
+            tracked via is_primary_key).
         """
         with self.conn.cursor() as cur:
             cur.execute(
