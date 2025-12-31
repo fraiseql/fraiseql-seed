@@ -53,11 +53,15 @@ class TableInfo:
         name: Table name
         columns: List of column metadata
         foreign_keys: List of foreign key relationships
+        multi_unique_constraints: Multi-column UNIQUE constraints (Phase 3)
+        check_constraints: CHECK constraints (Phase 3)
     """
 
     name: str
     columns: list[ColumnInfo]
     foreign_keys: list[ForeignKeyInfo] = field(default_factory=list)
+    multi_unique_constraints: list[Any] = field(default_factory=list)  # Stub for Phase 3
+    check_constraints: list[Any] = field(default_factory=list)  # Stub for Phase 3
 
     @property
     def is_trinity(self) -> bool:
@@ -211,6 +215,14 @@ class Seeds:
         if name in self._tables:
             return self._tables[name]
         raise AttributeError(f"No table '{name}' in seeds")
+
+    def to_json(self, file_path: Any | None = None, indent: int = 2) -> str | None:
+        """Stub - export to JSON not yet implemented."""
+        raise NotImplementedError("Export to JSON not yet implemented")
+
+    def to_csv(self, table_name: str, file_path: Any) -> None:
+        """Stub - export to CSV not yet implemented."""
+        raise NotImplementedError("Export to CSV not yet implemented")
 
 
 @dataclass
