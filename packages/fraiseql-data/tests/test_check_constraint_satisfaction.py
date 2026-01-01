@@ -99,8 +99,10 @@ def test_complex_check_emits_warning(db_conn, test_schema, caplog):
     try:
         builder.add("tb_order", count=10).execute()
         # May fail if constraint violation occurs, or succeed with warning
+        db_conn.commit()
     except Exception:
-        pass  # Expected if constraint violated
+        # Expected if constraint violated - rollback to clean transaction state
+        db_conn.rollback()
 
     # Verify warning was emitted
     assert any(

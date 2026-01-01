@@ -213,6 +213,158 @@ seeds = builder.add("tb_product", count=1000).execute()
 
 See [PERFORMANCE.md](PERFORMANCE.md) for detailed benchmarks.
 
+## Phase 3 Features
+
+### Data Export
+
+Export generated seed data to JSON or CSV formats:
+
+```python
+# Generate seed data
+builder = SeedBuilder(conn, schema="public")
+seeds = builder.add("tb_manufacturer", count=50).execute()
+
+# Export all tables to JSON
+json_str = seeds.to_json()
+with open("seeds.json", "w") as f:
+    f.write(json_str)
+
+# Export single table to CSV
+seeds.to_csv("tb_manufacturer", "manufacturers.csv")
+```
+
+## Phase 4 Features (New!)
+
+### Data Import
+
+Import previously exported seed data from JSON or CSV:
+
+```python
+from fraiseql_data.models import Seeds
+
+# Import from JSON (all tables)
+imported = Seeds.from_json(file_path="seeds.json")
+# or from JSON string:
+imported = Seeds.from_json(json_str=json_data)
+
+# Import from CSV (single table)
+imported = Seeds.from_csv("tb_manufacturer", "manufacturers.csv")
+
+# Insert imported data into database
+builder = SeedBuilder(conn, schema="public")
+result = builder.insert_seeds(imported)
+```
+
+**Type Conversion:**
+- UUIDs automatically converted from strings
+- ISO datetime strings converted to datetime objects
+- Round-trip export/import preserves all types
+
+### Staging Backend (In-Memory Testing)
+
+Generate seed data without a database connection for faster testing:
+
+```python
+from fraiseql_data import SeedBuilder
+from fraiseql_data.models import TableInfo, ColumnInfo
+
+# No database connection needed!
+builder = SeedBuilder(conn=None, schema="test", backend="staging")
+
+# Define table schema manually
+table_info = TableInfo(
+    name="tb_product",
+    columns=[
+        ColumnInfo(name="pk_product", pg_type="integer", is_nullable=False, is_primary_key=True),
+        ColumnInfo(name="id", pg_type="uuid", is_nullable=False, is_unique=True),
+        ColumnInfo(name="identifier", pg_type="text", is_nullable=False, is_unique=True),
+        ColumnInfo(name="name", pg_type="text", is_nullable=False),
+        ColumnInfo(name="price", pg_type="numeric", is_nullable=True),
+    ],
+)
+builder.set_table_schema("tb_product", table_info)
+
+# Generate data in-memory (no database writes)
+seeds = builder.add("tb_product", count=100).execute()
+
+# Export to JSON for later use
+json_str = seeds.to_json()
+
+# Later: import and insert into actual database
+imported = Seeds.from_json(json_str=json_str)
+db_builder = SeedBuilder(db_conn, schema="public", backend="direct")
+db_builder.insert_seeds(imported)
+```
+
+**Benefits:**
+- No database setup needed for unit tests
+- Faster test execution (in-memory only)
+- Easy migration from staging to production
+
+### CHECK Constraint Auto-Satisfaction
+
+Automatically generate valid data for CHECK constraints:
+
+```python
+# Schema with CHECK constraints:
+# CREATE TABLE tb_product (
+#     pk_product INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+#     id UUID NOT NULL UNIQUE,
+#     identifier TEXT NOT NULL UNIQUE,
+#     name TEXT NOT NULL,
+#     status TEXT NOT NULL CHECK (status IN ('active', 'pending', 'archived')),
+#     price NUMERIC CHECK (price > 0 AND price < 10000),
+#     stock INTEGER CHECK (stock >= 0)
+# );
+
+# No overrides needed - constraints automatically satisfied!
+seeds = builder.add("tb_product", count=100).execute()
+
+# All rows have valid data:
+for product in seeds.tb_product:
+    assert product.status in ['active', 'pending', 'archived']
+    assert 0 < product.price < 10000
+    assert product.stock >= 0
+```
+
+**Supported Constraint Types:**
+- **Enum values:** `status IN ('active', 'inactive')`
+- **Range constraints:** `price > 0`, `price < 10000`, `stock >= 0`
+- **BETWEEN:** `age BETWEEN 18 AND 65`
+- **Combined:** `price > 0 AND price < 10000`
+
+**Complex constraints** (e.g., `total = price * quantity`) emit warnings and require manual overrides.
+
+### Batch Operations API
+
+Fluent API for multi-table seeding with conditional operations:
+
+```python
+builder = SeedBuilder(conn, schema="public")
+
+# Context manager - auto-executes on exit
+with builder.batch() as batch:
+    batch.add("tb_manufacturer", count=10)
+    batch.add("tb_model", count=50)
+    batch.add("tb_variant", count=200)
+
+# Conditional operations
+include_test_data = True
+include_demo_data = False
+
+with builder.batch() as batch:
+    batch.when(include_test_data).add("tb_test_user", count=20)
+    batch.when(include_demo_data).add("tb_demo_product", count=100)  # Skipped
+
+# Dynamic count with callable
+import random
+
+seeds = builder.add(
+    "tb_product",
+    count=lambda: random.randint(50, 100)  # Generate 50-100 products
+).execute()
+```
+
 ## pytest Integration
 
 Use the `@seed_data` decorator for test fixtures:
@@ -404,10 +556,12 @@ uv run ruff check src/ tests/
 
 fraiseql-data uses a modular architecture:
 
-- **Introspection:** Query information_schema for tables, columns, FKs, UNIQUE constraints
+- **Introspection:** Query information_schema for tables, columns, FKs, UNIQUE constraints, CHECK constraints
 - **Dependency Graph:** Topological sort for correct insertion order
-- **Generators:** Faker, Trinity, Sequential (extensible)
-- **Backends:** DirectBackend (bulk INSERT), future: StagingBackend, CopyBackend
+- **Generators:** Faker, Trinity, Sequential, CHECK constraint satisfaction (extensible)
+- **Backends:** DirectBackend (bulk INSERT), StagingBackend (in-memory), future: CopyBackend
+- **Import/Export:** JSON and CSV with automatic type conversion
+- **Batch API:** Context manager with conditional operations
 - **Decorators:** pytest integration with auto-cleanup
 
 ## Roadmap
@@ -424,15 +578,21 @@ fraiseql-data uses a modular architecture:
 - ✅ UNIQUE constraint handling
 - ✅ Bulk insert optimization (5x speedup)
 
-**Phase 3 (Planned):**
-- Complex constraints (CHECK, multi-column UNIQUE)
-- Custom generator plugins
-- Data export (JSON, CSV)
+**Phase 3 (Complete):**
+- ✅ Data export (JSON, CSV)
 
-**Phase 4 (Future):**
-- Staging backend (COPY for massive datasets)
+**Phase 4 (Complete):**
+- ✅ Data import (JSON, CSV with type conversion)
+- ✅ Staging backend (in-memory testing without database)
+- ✅ CHECK constraint auto-satisfaction
+- ✅ Batch operations API with conditionals
+
+**Future:**
+- Custom generator plugins
+- Multi-column UNIQUE constraints
+- COPY backend for massive datasets (10x faster)
 - Parallel batch processing
-- Multi-database support
+- Multi-database support (MySQL, SQLite)
 
 ## Contributing
 
