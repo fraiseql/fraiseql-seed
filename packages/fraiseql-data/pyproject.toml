@@ -5,7 +5,7 @@ name = "fraiseql-data"
 version = "0.1.0"
 description = "Schema-aware seed data generation for PostgreSQL"
 authors = [
-    {name = "FraiseQL Team", email = "team@fraiseql.dev"}
+    {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}
 ]
 readme = "README.md"
 license = {text = "MIT"}

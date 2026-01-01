@@ -5,7 +5,7 @@ name = "fraiseql-uuid"
 version = "0.1.0"
 description = "Structured UUID pattern library with encode/decode support"
 authors = [
-    {name = "FraiseQL Team", email = "team@fraiseql.dev"}
+    {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}
 ]
 readme = "README.md"
 license = {text = "MIT"}
