@@ -1,0 +1,32 @@
+# Example fraiseql-data CLI configuration file
+#
+# This file can be placed in:
+#   1. Project directory: .fraiseql-data.yaml (project-specific settings)
+#   2. User home directory: ~/.fraiseql-data.yaml (user-wide defaults)
+#
+# Priority (highest to lowest):
+#   1. Command-line options
+#   2. Environment variables
+#   3. User config file (~/.fraiseql-data.yaml)
+#   4. Project config file (.fraiseql-data.yaml)
+#   5. Built-in defaults
+
+# Database connection
+# Can also be set via DATABASE_URL environment variable
+database_url: "postgresql://localhost/fraiseql_dev"
+
+# Default schema for database operations
+default_schema: "public"
+
+# Default number of rows to generate per table
+default_count: 10
+
+# Default output format for generate command
+# Options: json, csv, yaml, table
+output_format: "json"
+
+# Quiet mode - suppress non-essential output
+quiet: false
+
+# Debug mode - enable verbose logging and save logs to file
+debug: false
