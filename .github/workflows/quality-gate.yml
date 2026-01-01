@@ -217,11 +217,58 @@ jobs:
         # }
         echo "✅ fraiseql-data type check skipped (beta release)"
 
+  markdown-quality:
+    name: Markdown Quality & Links
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install markdown-link-check
+      run: |
+        npm install -g markdown-link-check@3.12.1
+
+    - name: Install markdownlint-cli
+      run: |
+        npm install -g markdownlint-cli@0.39.0
+
+    - name: Check markdown links
+      run: |
+        echo "=== Checking Markdown Links ==="
+        # Check all markdown files for broken links
+        find . -name "*.md" \
+          ! -path "./.*" \
+          ! -path "*/node_modules/*" \
+          ! -path "*/.venv/*" \
+          ! -path "*/.pytest_cache/*" \
+          ! -path "*/.phases/*" \
+          -exec markdown-link-check --config .github/markdown-link-check.json {} \; \
+          || {
+            echo "❌ Broken links found in markdown files"
+            exit 1
+          }
+        echo "✅ All markdown links are valid"
+
+    - name: Lint markdown files
+      run: |
+        echo "=== Linting Markdown Files ==="
+        markdownlint \
+          --config .github/markdownlint.json \
+          "**/*.md" \
+          --ignore node_modules \
+          --ignore .venv \
+          --ignore .pytest_cache \
+          --ignore .phases \
+          || {
+            echo "❌ Markdown lint errors found"
+            exit 1
+          }
+        echo "✅ All markdown files are properly formatted"
+
   # Quality gate summary job - this job fails if any quality check fails
   quality-gate:
     name: Quality Gate ✅
     runs-on: ubuntu-latest
-    needs: [unit-tests, postgres-tests, lint, type-check]
+    needs: [unit-tests, postgres-tests, lint, type-check, markdown-quality]
     if: always()
     steps:
       - name: Check quality gate status
@@ -243,6 +290,10 @@ jobs:
             echo "❌ Type checking failed - Quality gate blocked"
             exit 1
           fi
+          if [[ "${{ needs.markdown-quality.result }}" != "success" ]]; then
+            echo "❌ Markdown quality checks failed - Quality gate blocked"
+            exit 1
+          fi
           echo "✅ All quality checks passed - Quality gate open"
           echo "🚀 Code is ready for merge/release"
 
@@ -256,6 +307,7 @@ jobs:
           echo "| PostgreSQL Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
           echo "| Lint & Format | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
           echo "| Type Checking | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Markdown Quality | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📊 **Coverage Reports**: Available on Codecov" >> $GITHUB_STEP_SUMMARY
           echo "🚀 **Ready for**: Merge to main / Release" >> $GITHUB_STEP_SUMMARY
