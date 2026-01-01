@@ -365,6 +365,148 @@ seeds = builder.add(
 ).execute()
 ```
 
+## Phase 5 Features (New!)
+
+### Auto-Dependency Resolution
+
+Automatically generate parent dependencies without manual specification:
+
+```python
+builder = SeedBuilder(conn, schema="public")
+
+# Before: Manual dependency specification
+seeds = (
+    builder
+    .add("tb_organization", count=1)
+    .add("tb_machine", count=5)
+    .add("tb_allocation", count=20)
+    .execute()
+)
+
+# After: Auto-generate dependencies
+seeds = builder.add("tb_allocation", count=20, auto_deps=True).execute()
+
+# Automatically creates:
+# - 1 organization (root dependency)
+# - 5 machines (inferred from FK relationships)
+# - 20 allocations (requested)
+```
+
+**How it works:**
+- Introspects foreign key relationships recursively
+- Builds dependency tree via depth-first traversal
+- Generates minimal parents (1 row per dependency by default)
+- Deduplicates when multiple paths lead to same table
+
+#### Auto-Deps with Explicit Counts
+
+Specify custom counts for specific dependencies:
+
+```python
+seeds = builder.add(
+    "tb_allocation",
+    count=100,
+    auto_deps={
+        "tb_organization": 3,  # Create 3 organizations
+        "tb_machine": 10,      # Create 10 machines
+    }
+).execute()
+
+# Creates: 3 orgs → 10 machines → 100 allocations
+```
+
+#### Auto-Deps with Overrides
+
+Customize auto-generated dependency data:
+
+```python
+seeds = builder.add(
+    "tb_allocation",
+    count=50,
+    auto_deps={
+        "tb_organization": {
+            "count": 2,
+            "overrides": {
+                "name": lambda i: f"Test Organization {i}",
+                "org_type": "nonprofit",
+            }
+        }
+    }
+).execute()
+
+# Organizations have custom names and type
+assert seeds.tb_organization[0].name == "Test Organization 1"
+assert seeds.tb_organization[0].org_type == "nonprofit"
+```
+
+#### Manual Precedence
+
+Manual `.add()` calls take precedence over auto-deps:
+
+```python
+# Manual specification wins
+seeds = (
+    builder
+    .add("tb_organization", count=5)  # Manual: create 5
+    .add("tb_machine", count=10, auto_deps={"tb_organization": 2})  # Auto-deps ignored
+    .execute()
+)
+
+# Result: 5 organizations (manual count used)
+# Warning logged about conflict
+```
+
+#### Multi-Path Deduplication
+
+When multiple paths lead to same dependency, only one instance is created:
+
+```python
+# Schema:
+# tb_allocation → tb_machine → tb_organization
+# tb_allocation → tb_contract → tb_organization
+
+seeds = builder.add("tb_allocation", count=10, auto_deps=True).execute()
+
+# Result: 1 organization (deduplicated despite 2 paths)
+assert len(seeds.tb_organization) == 1
+assert len(seeds.tb_machine) == 1
+assert len(seeds.tb_contract) == 1
+```
+
+#### Auto-Deps with Batch Operations
+
+Auto-deps works seamlessly with batch operations:
+
+```python
+with builder.batch() as batch:
+    batch.add("tb_machine", count=10, auto_deps=True)
+    batch.add("tb_allocation", count=50, auto_deps=True)
+
+# Dependencies are deduplicated across batch:
+# - 1 organization (shared by both tables)
+# - 10 machines
+# - 50 allocations
+```
+
+#### Deep Hierarchies
+
+Auto-deps handles deep dependency chains (6+ levels):
+
+```python
+# Schema: room → building → city → state → country → region
+
+seeds = builder.add("tb_room", count=100, auto_deps=True).execute()
+
+# Automatically generates entire hierarchy:
+# 1 region → 1 country → 1 state → 1 city → 1 building → 100 rooms
+assert len(seeds.tb_region) == 1
+assert len(seeds.tb_room) == 100
+```
+
+**Limitations:**
+- Default behavior creates new data each time (no reuse of existing rows)
+- `reuse_existing` parameter available for future enhancement
+
 ## pytest Integration
 
 Use the `@seed_data` decorator for test fixtures:
@@ -410,13 +552,34 @@ builder = SeedBuilder(conn, schema="public")
 
 #### Methods
 
-**`add(table, count, strategy="faker", overrides=None)`**
+**`add(table, count, strategy="faker", overrides=None, auto_deps=False, reuse_existing=False)`**
 
 Add table to seed plan.
 
+**Parameters:**
+- `table` (str): Table name
+- `count` (int | callable): Number of rows to generate (or callable returning int)
+- `strategy` (str): Generation strategy (default: "faker")
+- `overrides` (dict): Column overrides (callable or static value)
+- `auto_deps` (bool | dict): Auto-generate FK dependencies
+  - `False`: No auto-deps (default)
+  - `True`: Generate 1 of each dependency (minimal)
+  - `dict`: Explicit counts/overrides per dependency table
+- `reuse_existing` (bool): Reuse existing database rows for dependencies (default: False)
+
 ```python
+# Basic usage
 builder.add("tb_product", count=100, overrides={
     "price": lambda: random.uniform(10.0, 500.0)
+})
+
+# With auto-deps
+builder.add("tb_allocation", count=50, auto_deps=True)
+
+# With explicit auto-deps config
+builder.add("tb_allocation", count=50, auto_deps={
+    "tb_organization": 3,
+    "tb_machine": {"count": 10, "overrides": {"name": "Test Machine"}}
 })
 ```
 
@@ -558,6 +721,7 @@ fraiseql-data uses a modular architecture:
 
 - **Introspection:** Query information_schema for tables, columns, FKs, UNIQUE constraints, CHECK constraints
 - **Dependency Graph:** Topological sort for correct insertion order
+- **Auto-Dependency Resolver:** Recursive FK traversal, DAG-based deduplication, multi-path handling
 - **Generators:** Faker, Trinity, Sequential, CHECK constraint satisfaction (extensible)
 - **Backends:** DirectBackend (bulk INSERT), StagingBackend (in-memory), future: CopyBackend
 - **Import/Export:** JSON and CSV with automatic type conversion
@@ -587,9 +751,16 @@ fraiseql-data uses a modular architecture:
 - ✅ CHECK constraint auto-satisfaction
 - ✅ Batch operations API with conditionals
 
+**Phase 5 (Complete):**
+- ✅ Auto-dependency resolution (auto_deps parameter)
+- ✅ Multi-path deduplication (DAG-based)
+- ✅ Manual precedence handling
+- ✅ Deep hierarchy support (6+ levels)
+- ✅ Batch integration with auto-deps
+
 **Future:**
+- `reuse_existing` feature (reuse database rows instead of generating new)
 - Custom generator plugins
-- Multi-column UNIQUE constraints
 - COPY backend for massive datasets (10x faster)
 - Parallel batch processing
 - Multi-database support (MySQL, SQLite)
