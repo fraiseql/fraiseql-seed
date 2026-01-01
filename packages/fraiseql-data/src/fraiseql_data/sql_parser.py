@@ -54,9 +54,7 @@ def parse_seed_sql(sql_file: Path) -> dict[str, int]:
         # Find UUIDs in this INSERT block
         # Extract block until next INSERT or end of file
         insert_start = match.start()
-        next_insert = re.search(
-            r"INSERT\s+INTO", content[insert_start + 50 :], re.IGNORECASE
-        )
+        next_insert = re.search(r"INSERT\s+INTO", content[insert_start + 50 :], re.IGNORECASE)
 
         if next_insert:
             insert_block = content[insert_start : insert_start + 50 + next_insert.start()]
@@ -72,8 +70,6 @@ def parse_seed_sql(sql_file: Path) -> dict[str, int]:
         if instances:
             max_instance = max(instances)
             tables[table] = max(tables.get(table, 0), max_instance)
-            logger.debug(
-                f"Found {len(instances)} instances in '{table}' (max: {max_instance})"
-            )
+            logger.debug(f"Found {len(instances)} instances in '{table}' (max: {max_instance})")
 
     return tables

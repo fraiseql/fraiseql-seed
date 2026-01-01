@@ -1,7 +1,6 @@
 """Test edge cases for auto-dependency resolution."""
 # ruff: noqa: E501
 
-
 from fraiseql_data import SeedBuilder
 
 
@@ -146,13 +145,11 @@ def test_auto_deps_count_exceeds_target(db_conn, test_schema, caplog):
 
     caplog.clear()
 
-    seeds = (
-        builder.add(
-            "tb_allocation",
-            count=10,
-            auto_deps={"tb_machine": 100},  # Unusual: 100 machines for 10 allocations
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_allocation",
+        count=10,
+        auto_deps={"tb_machine": 100},  # Unusual: 100 machines for 10 allocations
+    ).execute()
 
     # Verify data created (allowed but unusual)
     assert len(seeds.tb_machine) == 100

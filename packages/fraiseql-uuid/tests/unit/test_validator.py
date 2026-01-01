@@ -1,6 +1,5 @@
 """Tests for UUIDValidator class."""
 
-
 from fraiseql_uuid import Pattern, UUIDValidator, ValidationResult
 
 

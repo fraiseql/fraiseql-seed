@@ -275,18 +275,14 @@ class SeedBuilder:
                 errors = self._seed_common.validate(self.introspector)
                 if errors:
                     error_msg = "Seed common validation failed:\n" + "\n".join(
-                        f"  {i+1}. {err}" for i, err in enumerate(errors)
+                        f"  {i + 1}. {err}" for i, err in enumerate(errors)
                     )
                     raise SeedCommonValidationError(error_msg)
 
-        logger.debug(
-            f"Seed common loaded: {self._seed_common.get_instance_offsets()}"
-        )
+        logger.debug(f"Seed common loaded: {self._seed_common.get_instance_offsets()}")
 
         # Initialize auto-dependency resolver with seed common
-        self._auto_deps_resolver = AutoDependencyResolver(
-            self.introspector, self._seed_common
-        )
+        self._auto_deps_resolver = AutoDependencyResolver(self.introspector, self._seed_common)
 
     def add(
         self,
@@ -376,9 +372,7 @@ class SeedBuilder:
         plan_by_table = {p.table: p for p in self._plan}
 
         # Filter to only tables in plan, but in dependency order
-        sorted_plan = [
-            plan_by_table[table] for table in sorted_tables if table in plan_by_table
-        ]
+        sorted_plan = [plan_by_table[table] for table in sorted_tables if table in plan_by_table]
 
         seeds = Seeds()
         generated_data: dict[str, list[dict[str, Any]]] = {}
@@ -654,6 +648,7 @@ class SeedBuilder:
                     if callable(override):
                         # Check if callable expects instance argument
                         import inspect
+
                         sig = inspect.signature(override)
                         if len(sig.parameters) > 0:
                             row[col.name] = override(counter)
@@ -708,8 +703,7 @@ class SeedBuilder:
                         raise UniqueConstraintError(
                             col.name,
                             table_info.name,
-                            f"Could not generate unique value "
-                            f"after {MAX_UNIQUE_RETRIES} attempts",
+                            f"Could not generate unique value after {MAX_UNIQUE_RETRIES} attempts",
                         )
 
                     unique_values[col.name].add(value)

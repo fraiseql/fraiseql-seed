@@ -88,9 +88,7 @@ class TableInfo:
     name: str
     columns: list[ColumnInfo]
     foreign_keys: list[ForeignKeyInfo] = field(default_factory=list)
-    multi_unique_constraints: list["MultiColumnUniqueConstraint"] = field(
-        default_factory=list
-    )
+    multi_unique_constraints: list["MultiColumnUniqueConstraint"] = field(default_factory=list)
     check_constraints: list["CheckConstraint"] = field(default_factory=list)
 
     @property
@@ -247,9 +245,7 @@ class Seeds:
         raise AttributeError(f"No table '{name}' in seeds")
 
     @classmethod
-    def from_json(
-        cls, file_path: Any | None = None, json_str: str | None = None
-    ) -> "Seeds":
+    def from_json(cls, file_path: Any | None = None, json_str: str | None = None) -> "Seeds":
         """
         Import seed data from JSON format with automatic type conversion.
 
@@ -378,8 +374,7 @@ class Seeds:
 
         # Convert SeedRow objects to dicts
         data = {
-            table_name: [row._data for row in rows]
-            for table_name, rows in self._tables.items()
+            table_name: [row._data for row in rows] for table_name, rows in self._tables.items()
         }
 
         # Serialize with default=str to handle UUID, datetime, etc.
@@ -412,10 +407,7 @@ class Seeds:
 
         if table_name not in self._tables:
             available = ", ".join(self._tables.keys())
-            raise ValueError(
-                f"Table '{table_name}' not in seeds. "
-                f"Available tables: {available}"
-            )
+            raise ValueError(f"Table '{table_name}' not in seeds. Available tables: {available}")
 
         rows = self._tables[table_name]
         if not rows:
@@ -430,10 +422,7 @@ class Seeds:
 
             for row in rows:
                 # Convert all values to strings for CSV
-                csv_row = {
-                    k: str(v) if v is not None else ""
-                    for k, v in row._data.items()
-                }
+                csv_row = {k: str(v) if v is not None else "" for k, v in row._data.items()}
                 writer.writerow(csv_row)
 
 

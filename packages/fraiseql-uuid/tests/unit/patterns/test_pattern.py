@@ -82,7 +82,9 @@ class TestPatternGenerate:
         uuid = pattern.generate(table_code="012345", instance=1)
 
         # UUID v4 format: xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx
-        v4_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$", re.I)
+        v4_pattern = re.compile(
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$", re.I
+        )
         assert v4_pattern.match(uuid)
 
     def test_generate_scenario_split(self) -> None:
@@ -203,7 +205,9 @@ class TestPatternValidateFormat:
 
         assert pattern.validate_format("not-a-uuid") is False
         assert pattern.validate_format("") is False
-        assert pattern.validate_format("01234521-0000-0000-0000-000000000001") is False  # Wrong version
+        assert (
+            pattern.validate_format("01234521-0000-0000-0000-000000000001") is False
+        )  # Wrong version
 
     def test_validate_wrong_segment_count(self) -> None:
         """Test that UUIDs with wrong segment count fail."""

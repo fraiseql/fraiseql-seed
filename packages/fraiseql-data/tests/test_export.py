@@ -64,9 +64,7 @@ def test_export_to_csv(db_conn: Connection, test_schema: str, tmp_path: Path):
     assert "name" in first_row
 
 
-def test_export_handles_uuids_and_datetimes(
-    db_conn: Connection, test_schema: str, tmp_path: Path
-):
+def test_export_handles_uuids_and_datetimes(db_conn: Connection, test_schema: str, tmp_path: Path):
     """Test JSON export with UUID and datetime columns."""
     # Create table with datetime column
     with db_conn.cursor() as cur:

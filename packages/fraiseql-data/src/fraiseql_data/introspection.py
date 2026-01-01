@@ -236,9 +236,7 @@ class SchemaIntrospector:
                 # Split comma-separated column names into tuple
                 columns = tuple(row[1].split(","))
                 constraints.append(
-                    MultiColumnUniqueConstraint(
-                        columns=columns, constraint_name=constraint_name
-                    )
+                    MultiColumnUniqueConstraint(columns=columns, constraint_name=constraint_name)
                 )
 
             return constraints
@@ -295,9 +293,7 @@ class SchemaIntrospector:
                 if check_clause.startswith("CHECK "):
                     check_clause = check_clause[6:]
                 constraints.append(
-                    CheckConstraint(
-                        constraint_name=constraint_name, check_clause=check_clause
-                    )
+                    CheckConstraint(constraint_name=constraint_name, check_clause=check_clause)
                 )
 
             return constraints

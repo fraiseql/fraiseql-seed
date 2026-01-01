@@ -177,7 +177,7 @@ class TestMultiTableWorkflow:
         }
 
         # Generate and validate from each table
-        for table_name, generator in generators.items():
+        for _table_name, generator in generators.items():
             uuid = generator.generate(instance=1)
             validation_result = validator.validate(uuid)
             assert validation_result.valid is True

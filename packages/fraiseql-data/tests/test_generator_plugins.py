@@ -88,16 +88,14 @@ def test_custom_generator_with_context(db_conn: Connection, test_schema: str):
 
     # Seed with overrides (category column needed for SKU generation)
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_item",
-            count=5,
-            overrides={
-                "category": lambda i: ["ELEC", "FOOD", "TOOLS"][i % 3],
-                # SKU generator would use category from row_data
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_item",
+        count=5,
+        overrides={
+            "category": lambda i: ["ELEC", "FOOD", "TOOLS"][i % 3],
+            # SKU generator would use category from row_data
+        },
+    ).execute()
 
     # Verify categories were set
     items = seeds.tb_item

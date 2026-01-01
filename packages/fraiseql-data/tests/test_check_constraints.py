@@ -30,9 +30,7 @@ def test_check_constraint_introspection(db_conn: Connection, test_schema: str):
     table_info = introspector.get_table_info("tb_product")
 
     # Verify CHECK constraint is detected
-    assert (
-        len(table_info.check_constraints) > 0
-    ), "CHECK constraint should be introspected"
+    assert len(table_info.check_constraints) > 0, "CHECK constraint should be introspected"
 
     # Find price CHECK constraint
     price_check = None
@@ -113,16 +111,14 @@ def test_check_constraint_with_override(db_conn: Connection, test_schema: str):
         return random.choice(["active", "inactive"])
 
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_product",
-            count=50,
-            overrides={
-                "price": generate_valid_price,
-                "status": generate_valid_status,
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_product",
+        count=50,
+        overrides={
+            "price": generate_valid_price,
+            "status": generate_valid_status,
+        },
+    ).execute()
 
     # Verify all rows satisfy CHECK constraints
     products = seeds.tb_product

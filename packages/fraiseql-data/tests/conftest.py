@@ -15,10 +15,7 @@ def db_conn() -> Connection:
     For now, returns a connection to a test database that must exist.
     """
     # TODO: Use environment variable or test database
-    conn = psycopg.connect(
-        "postgresql://localhost/fraiseql_test",
-        autocommit=False
-    )
+    conn = psycopg.connect("postgresql://localhost/fraiseql_test", autocommit=False)
 
     yield conn
 

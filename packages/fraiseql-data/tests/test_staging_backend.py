@@ -1,6 +1,5 @@
 """Test staging backend for in-memory seed generation without database."""
 
-
 from fraiseql_data import SeedBuilder
 from fraiseql_data.models import ColumnInfo, TableInfo
 
@@ -21,9 +20,7 @@ def test_staging_backend_no_database():
                 is_primary_key=True,
             ),
             ColumnInfo(name="id", pg_type="uuid", is_nullable=False, is_unique=True),
-            ColumnInfo(
-                name="identifier", pg_type="text", is_nullable=False, is_unique=True
-            ),
+            ColumnInfo(name="identifier", pg_type="text", is_nullable=False, is_unique=True),
             ColumnInfo(name="name", pg_type="text", is_nullable=False),
             ColumnInfo(name="price", pg_type="numeric", is_nullable=True),
         ],
@@ -54,9 +51,7 @@ def test_staging_backend_generates_pks():
                 is_primary_key=True,
             ),
             ColumnInfo(name="id", pg_type="uuid", is_nullable=False, is_unique=True),
-            ColumnInfo(
-                name="identifier", pg_type="text", is_nullable=False, is_unique=True
-            ),
+            ColumnInfo(name="identifier", pg_type="text", is_nullable=False, is_unique=True),
             ColumnInfo(name="name", pg_type="text", is_nullable=False),
         ],
     )
@@ -88,9 +83,7 @@ def test_staging_to_database_migration(db_conn, test_schema):
                 is_primary_key=True,
             ),
             ColumnInfo(name="id", pg_type="uuid", is_nullable=False, is_unique=True),
-            ColumnInfo(
-                name="identifier", pg_type="text", is_nullable=False, is_unique=True
-            ),
+            ColumnInfo(name="identifier", pg_type="text", is_nullable=False, is_unique=True),
             ColumnInfo(name="name", pg_type="text", is_nullable=False),
             ColumnInfo(name="email", pg_type="text", is_nullable=True),
             # Skip created_at - will use database default when inserting

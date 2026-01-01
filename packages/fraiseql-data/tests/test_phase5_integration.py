@@ -73,9 +73,7 @@ def test_auto_deps_with_staging_backend(test_schema):
                 is_nullable=False,
             ),
             ColumnInfo(name="id", pg_type="UUID", is_nullable=False, is_unique=True),
-            ColumnInfo(
-                name="identifier", pg_type="TEXT", is_nullable=False, is_unique=True
-            ),
+            ColumnInfo(name="identifier", pg_type="TEXT", is_nullable=False, is_unique=True),
             ColumnInfo(name="name", pg_type="TEXT", is_nullable=False),
         ],
         foreign_keys=[],
@@ -91,13 +89,9 @@ def test_auto_deps_with_staging_backend(test_schema):
                 is_nullable=False,
             ),
             ColumnInfo(name="id", pg_type="UUID", is_nullable=False, is_unique=True),
-            ColumnInfo(
-                name="identifier", pg_type="TEXT", is_nullable=False, is_unique=True
-            ),
+            ColumnInfo(name="identifier", pg_type="TEXT", is_nullable=False, is_unique=True),
             ColumnInfo(name="name", pg_type="TEXT", is_nullable=False),
-            ColumnInfo(
-                name="fk_organization", pg_type="INTEGER", is_nullable=False
-            ),
+            ColumnInfo(name="fk_organization", pg_type="INTEGER", is_nullable=False),
         ],
         foreign_keys=[
             ForeignKeyInfo(
@@ -377,7 +371,9 @@ def test_auto_deps_with_export_import(db_conn, test_schema):
 
     # Clear database and reset sequences
     with db_conn.cursor() as cur:
-        cur.execute(f"TRUNCATE {test_schema}.tb_machine, {test_schema}.tb_organization RESTART IDENTITY CASCADE")
+        cur.execute(
+            f"TRUNCATE {test_schema}.tb_machine, {test_schema}.tb_organization RESTART IDENTITY CASCADE"
+        )
         db_conn.commit()
 
     # Re-import

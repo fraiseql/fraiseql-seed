@@ -6,7 +6,6 @@ removed. For UUID collision prevention, use seed common baselines.
 """
 # ruff: noqa: E501
 
-
 from fraiseql_data import SeedBuilder
 
 
@@ -39,13 +38,11 @@ def test_auto_deps_generates_fresh_data(db_conn, test_schema):
 
     # Test: auto-deps generates needed data
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_allocation",
-            count=10,
-            auto_deps={"tb_organization": 3},
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_allocation",
+        count=10,
+        auto_deps={"tb_organization": 3},
+    ).execute()
 
     # Verify: generated 3 organizations + 10 allocations
     assert len(seeds.tb_organization) == 3

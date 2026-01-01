@@ -117,9 +117,7 @@ class AutoDependencyResolver:
                 break
 
         if not pk_column:
-            logger.warning(
-                f"Cannot reuse rows from '{table}': no primary key found"
-            )
+            logger.warning(f"Cannot reuse rows from '{table}': no primary key found")
             return []
 
         # Build column list for SELECT
@@ -151,10 +149,7 @@ class AutoDependencyResolver:
                 row_dict[col_name] = row[i]
             row_dicts.append(row_dict)
 
-        logger.debug(
-            f"Reused {len(row_dicts)} existing rows from '{table}' "
-            f"(requested {count})"
-        )
+        logger.debug(f"Reused {len(row_dicts)} existing rows from '{table}' (requested {count})")
 
         return row_dicts
 
@@ -235,9 +230,7 @@ class AutoDependencyResolver:
                 # Dependency already manually added - check for count conflict
                 if dep_table in dep_config:
                     # User specified auto_deps count, but table already in plan
-                    existing_plan = next(
-                        p for p in current_plan if p.table == dep_table
-                    )
+                    existing_plan = next(p for p in current_plan if p.table == dep_table)
                     requested_count = dep_config[dep_table]
                     if isinstance(requested_count, dict):
                         requested_count = requested_count.get("count", 1)
@@ -280,9 +273,7 @@ class AutoDependencyResolver:
                 )
 
             # Check if seed common provides enough instances
-            seed_common_count = self.seed_common.get_instance_offsets().get(
-                dep_table, 0
-            )
+            seed_common_count = self.seed_common.get_instance_offsets().get(dep_table, 0)
 
             if seed_common_count >= dep_count:
                 # Seed common has enough! No generation needed
@@ -309,8 +300,7 @@ class AutoDependencyResolver:
                     )
                 else:
                     logger.debug(
-                        f"Auto-added dependency: {dep_table} (count={rows_needed}) "
-                        f"for {table}"
+                        f"Auto-added dependency: {dep_table} (count={rows_needed}) for {table}"
                     )
 
                 plan = SeedPlan(

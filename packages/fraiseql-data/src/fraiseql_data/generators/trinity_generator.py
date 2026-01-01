@@ -32,6 +32,7 @@ class TrinityGenerator:
 
         # Auto-generate table code from table name
         import hashlib
+
         self.table_code = hashlib.md5(table_name.encode()).hexdigest()[:6]
 
     def generate(self, instance: int, **row_data: Any) -> dict[str, Any]:

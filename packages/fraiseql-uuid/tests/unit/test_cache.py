@@ -1,6 +1,5 @@
 """Tests for UUIDCache class."""
 
-
 from fraiseql_uuid import UUIDCache
 
 

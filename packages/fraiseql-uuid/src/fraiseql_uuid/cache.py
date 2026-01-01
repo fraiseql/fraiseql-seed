@@ -1,7 +1,6 @@
 """UUID generation cache for performance."""
 
 
-
 class UUIDCache:
     """Cache for generated UUIDs."""
 

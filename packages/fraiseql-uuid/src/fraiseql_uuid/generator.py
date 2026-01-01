@@ -31,12 +31,7 @@ class UUIDGenerator:
         params = {**self.defaults, **kwargs, "instance": instance}
         return self.pattern.generate(**params)
 
-    def generate_batch(
-        self,
-        count: int,
-        start_instance: int = 1,
-        **kwargs: Any
-    ) -> list[str]:
+    def generate_batch(self, count: int, start_instance: int = 1, **kwargs: Any) -> list[str]:
         """Generate batch of UUIDs.
 
         Args:
@@ -47,7 +42,4 @@ class UUIDGenerator:
         Returns:
             List of generated UUIDs
         """
-        return [
-            self.generate(start_instance + i, **kwargs)
-            for i in range(count)
-        ]
+        return [self.generate(start_instance + i, **kwargs) for i in range(count)]

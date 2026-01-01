@@ -84,9 +84,7 @@ def test_all_phase2_features_together(db_conn: Connection, test_schema: str):
     categories_with_parents = [
         cat for cat in seeds.tb_category if cat._data["parent_category"] is not None
     ]
-    assert (
-        len(categories_with_parents) > 0
-    ), "Some categories should have parent_category set"
+    assert len(categories_with_parents) > 0, "Some categories should have parent_category set"
 
     # All parent references should be valid
     all_pks = {cat._data["pk_category"] for cat in seeds.tb_category}
@@ -158,6 +156,4 @@ def test_complex_hierarchy(db_conn: Connection, test_schema: str):
     for emp in seeds.tb_employee:
         fk_manager = emp._data["fk_manager"]
         if fk_manager is not None:
-            assert (
-                fk_manager != emp._data["pk_employee"]
-            ), "Employee can't be own manager"
+            assert fk_manager != emp._data["pk_employee"], "Employee can't be own manager"

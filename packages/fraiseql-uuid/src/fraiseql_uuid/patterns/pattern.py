@@ -105,7 +105,7 @@ class Pattern(BasePattern):
                 "scenario": scenario,
                 "test_case": int(test_case),
                 "instance": int(instance),
-            }
+            },
         )
 
     def validate_format(self, uuid: str) -> bool:

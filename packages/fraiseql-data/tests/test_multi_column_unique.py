@@ -60,17 +60,15 @@ def test_multi_column_unique_three_columns(db_conn: Connection, test_schema: str
 
     # Seed 50 rows
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_transaction",
-            count=50,
-            overrides={
-                "year": lambda i: 2024,
-                "month": lambda i: (i % 12) + 1,  # 1-12
-                "amount": lambda: 100.0,
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_transaction",
+        count=50,
+        overrides={
+            "year": lambda i: 2024,
+            "month": lambda i: (i % 12) + 1,  # 1-12
+            "amount": lambda: 100.0,
+        },
+    ).execute()
 
     # Verify no duplicate (year, month, code) tuples
     transactions = seeds.tb_transaction
@@ -83,9 +81,7 @@ def test_multi_column_unique_three_columns(db_conn: Connection, test_schema: str
     assert len(tuples) == len(set(tuples)), "Found duplicate (year, month, code) tuples"
 
 
-def test_multiple_multi_column_unique_constraints(
-    db_conn: Connection, test_schema: str
-):
+def test_multiple_multi_column_unique_constraints(db_conn: Connection, test_schema: str):
     """Test table with multiple multi-column UNIQUE constraints."""
     # Create table with two multi-column UNIQUE constraints
     with db_conn.cursor() as cur:
@@ -108,16 +104,14 @@ def test_multiple_multi_column_unique_constraints(
 
     # Seed 30 rows
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_order",
-            count=30,
-            overrides={
-                "year": lambda i: 2024,
-                "month": lambda i: (i % 12) + 1,
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_order",
+        count=30,
+        overrides={
+            "year": lambda i: 2024,
+            "month": lambda i: (i % 12) + 1,
+        },
+    ).execute()
 
     # Verify both constraints are satisfied
     orders = seeds.tb_order

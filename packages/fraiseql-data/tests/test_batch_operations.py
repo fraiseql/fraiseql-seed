@@ -54,15 +54,11 @@ def test_dynamic_count(db_conn, test_schema):
 
     # Use callable for dynamic count
     random.seed(42)  # For reproducibility
-    seeds = builder.add(
-        "tb_manufacturer", count=lambda: random.randint(5, 15)
-    ).execute()
+    seeds = builder.add("tb_manufacturer", count=lambda: random.randint(5, 15)).execute()
 
     # Verify count is in expected range
     count = len(seeds.tb_manufacturer)
-    assert (
-        5 <= count <= 15
-    ), f"Expected count between 5-15, got {count}"
+    assert 5 <= count <= 15, f"Expected count between 5-15, got {count}"
 
     # Verify in database
     with db_conn.cursor() as cur:

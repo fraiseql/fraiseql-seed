@@ -1,7 +1,6 @@
 """Test basic auto-dependency resolution functionality."""
 # ruff: noqa: E501
 
-
 from fraiseql_data import SeedBuilder
 
 
@@ -232,16 +231,14 @@ def test_auto_deps_with_explicit_counts(db_conn, test_schema):
 
     # Use auto_deps with explicit counts
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_allocation",
-            count=100,
-            auto_deps={
-                "tb_organization": 3,  # 3 organizations
-                "tb_machine": 10,  # 10 machines
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_allocation",
+        count=100,
+        auto_deps={
+            "tb_organization": 3,  # 3 organizations
+            "tb_machine": 10,  # 10 machines
+        },
+    ).execute()
 
     # Verify counts
     assert len(seeds.tb_organization) == 3
@@ -278,20 +275,18 @@ def test_auto_deps_with_overrides(db_conn, test_schema):
 
     # Use auto_deps with overrides
     builder = SeedBuilder(db_conn, schema=test_schema)
-    seeds = (
-        builder.add(
-            "tb_allocation",
-            count=10,
-            auto_deps={
-                "tb_organization": {
-                    "count": 2,
-                    "overrides": {
-                        "name": lambda i: f"Test Org {i}",
-                    },
-                }
-            },
-        ).execute()
-    )
+    seeds = builder.add(
+        "tb_allocation",
+        count=10,
+        auto_deps={
+            "tb_organization": {
+                "count": 2,
+                "overrides": {
+                    "name": lambda i: f"Test Org {i}",
+                },
+            }
+        },
+    ).execute()
 
     # Verify override values
     assert len(seeds.tb_organization) == 2

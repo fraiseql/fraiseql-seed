@@ -1,7 +1,6 @@
 """Test auto-dependency resolution with batch operations."""
 # ruff: noqa: E501
 
-
 from fraiseql_data import SeedBuilder
 
 

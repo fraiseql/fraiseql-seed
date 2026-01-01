@@ -1,6 +1,5 @@
 """Test automatic satisfaction of CHECK constraints."""
 
-
 from fraiseql_data import SeedBuilder
 
 
@@ -65,9 +64,7 @@ def test_auto_satisfy_range_constraint(db_conn, test_schema):
     # Verify all rows satisfy range constraints
     assert len(seeds.tb_product) == 50
     for product in seeds.tb_product:
-        assert (
-            0 < product.price < 10000
-        ), f"Price out of range: {product.price}"
+        assert 0 < product.price < 10000, f"Price out of range: {product.price}"
         assert product.stock >= 0, f"Stock negative: {product.stock}"
 
 

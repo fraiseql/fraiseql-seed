@@ -49,6 +49,7 @@ def test_execute_populates_trinity_columns(db_conn: Connection, test_schema: str
     # Should have id (UUID)
     assert hasattr(mfg, "id")
     from uuid import UUID
+
     assert isinstance(mfg.id, UUID)
 
     # Should have identifier (TEXT)

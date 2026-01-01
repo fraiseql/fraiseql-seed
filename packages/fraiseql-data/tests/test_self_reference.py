@@ -110,9 +110,9 @@ def test_self_reference_hierarchy(db_conn: Connection, test_schema: str):
     # Check all parent references exist in table
     for cat in categories:
         if cat.parent_category is not None:
-            assert (
-                cat.parent_category in all_pks
-            ), f"Category {cat.pk_category} has invalid parent {cat.parent_category}"
+            assert cat.parent_category in all_pks, (
+                f"Category {cat.pk_category} has invalid parent {cat.parent_category}"
+            )
 
     # Verify no cycles (no category is its own parent)
     for cat in categories:

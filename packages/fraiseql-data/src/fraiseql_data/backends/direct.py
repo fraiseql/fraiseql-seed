@@ -118,8 +118,7 @@ class DirectBackend:
                 # Convert to dicts
                 for result in result_rows:
                     complete_row = {
-                        col.name: result[idx]
-                        for idx, col in enumerate(table_info.columns)
+                        col.name: result[idx] for idx, col in enumerate(table_info.columns)
                     }
                     inserted_rows.append(complete_row)
 
@@ -177,9 +176,7 @@ class DirectBackend:
                 result = cur.fetchone()
 
                 # Build complete row dict
-                complete_row = {
-                    col.name: result[i] for i, col in enumerate(table_info.columns)
-                }
+                complete_row = {col.name: result[i] for i, col in enumerate(table_info.columns)}
                 inserted_rows.append(complete_row)
 
         self.conn.commit()
