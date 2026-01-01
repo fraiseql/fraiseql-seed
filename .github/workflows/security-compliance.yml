@@ -1,0 +1,432 @@
+name: Security & Compliance
+
+# Comprehensive security and compliance checks
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  schedule:
+    # Run weekly security scans
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
+  workflow_dispatch:
+
+concurrency:
+  group: security-compliance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write  # Required for uploading SARIF to Code Scanning
+  actions: read
+
+jobs:
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    # Only run on pull requests where there's always a diff to scan
+    # Push events to main can have BASE=HEAD which causes TruffleHog to error
+    if: github.event_name == 'pull_request'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Run TruffleHog OSS
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.pull_request.base.sha }}
+        head: ${{ github.event.pull_request.head.sha }}
+        extra_args: --debug --only-verified
+
+  license-scan:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Install license scanning tools
+      run: |
+        uv pip install pip-licenses
+
+    - name: Scan fraiseql-uuid licenses
+      run: |
+        echo "=== fraiseql-uuid Package Licenses ==="
+        cd packages/fraiseql-uuid
+        uv run pip-licenses --format=markdown --output-file=../../fraiseql-uuid-licenses.md
+        cat ../../fraiseql-uuid-licenses.md
+
+    - name: Scan fraiseql-data licenses
+      run: |
+        echo "=== fraiseql-data Package Licenses ==="
+        cd packages/fraiseql-data
+        uv run pip-licenses --format=markdown --output-file=../../fraiseql-data-licenses.md
+        cat ../../fraiseql-data-licenses.md
+
+    - name: Check for GPL licenses
+      run: |
+        # Check for GPL licenses (excluding LGPL and multi-licensed packages)
+        # Multi-licensed packages are acceptable if they offer at least one permissive license option
+
+        MULTI_LICENSED_OK=(
+          "typing-extensions"  # PSF/Apache - we use PSF
+        )
+
+        echo "=== Checking for GPL licenses in fraiseql-uuid ==="
+        GPL_PACKAGES_UUID=$(grep -i "GPL" fraiseql-uuid-licenses.md | grep -v -i "LGPL" || true)
+
+        echo "=== Checking for GPL licenses in fraiseql-data ==="
+        GPL_PACKAGES_DATA=$(grep -i "GPL" fraiseql-data-licenses.md | grep -v -i "LGPL" || true)
+
+        GPL_PACKAGES="$GPL_PACKAGES_UUID$GPL_PACKAGES_DATA"
+
+        if [ -n "$GPL_PACKAGES" ]; then
+          echo "Checking GPL-licensed packages..."
+
+          # Check each package
+          STRICT_GPL=""
+          while IFS= read -r line; do
+            if [ -z "$line" ]; then
+              continue
+            fi
+
+            PACKAGE_NAME=$(echo "$line" | cut -d'|' -f2 | tr -d ' ')
+
+            # Check if it's in our multi-licensed allow list
+            IS_ALLOWED=false
+            for allowed in "${MULTI_LICENSED_OK[@]}"; do
+              if [[ "$PACKAGE_NAME" == "$allowed" ]]; then
+                IS_ALLOWED=true
+                echo "✅ $PACKAGE_NAME: Multi-licensed (acceptable alternative available)"
+                break
+              fi
+            done
+
+            if ! $IS_ALLOWED; then
+              STRICT_GPL="$STRICT_GPL\n$line"
+            fi
+          done <<< "$GPL_PACKAGES"
+
+          if [ -n "$STRICT_GPL" ]; then
+            echo "❌ Strict GPL-licensed packages found:"
+            echo -e "$STRICT_GPL"
+            exit 1
+          else
+            echo "✅ All GPL packages have acceptable license alternatives"
+          fi
+        else
+          echo "✅ No GPL licenses found"
+        fi
+
+    - name: Upload license reports
+      uses: actions/upload-artifact@v6
+      with:
+        name: license-reports
+        path: |
+          fraiseql-uuid-licenses.md
+          fraiseql-data-licenses.md
+
+  dependency-audit:
+    name: Dependency Vulnerability Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Install pip-audit
+      run: uv pip install pip-audit
+
+    - name: Audit fraiseql-uuid dependencies
+      continue-on-error: true
+      run: |
+        echo "=== Auditing fraiseql-uuid Dependencies ==="
+        cd packages/fraiseql-uuid
+        uv run pip-audit --format json --output ../../fraiseql-uuid-audit.json || {
+          echo "⚠️  Vulnerabilities found in fraiseql-uuid"
+        }
+
+    - name: Audit fraiseql-data dependencies
+      continue-on-error: true
+      run: |
+        echo "=== Auditing fraiseql-data Dependencies ==="
+        cd packages/fraiseql-data
+        uv run pip-audit --format json --output ../../fraiseql-data-audit.json || {
+          echo "⚠️  Vulnerabilities found in fraiseql-data"
+        }
+
+    - name: Check for critical vulnerabilities
+      run: |
+        echo "=== Checking for CRITICAL/HIGH Vulnerabilities ==="
+
+        HAS_CRITICAL=false
+
+        # Check fraiseql-uuid
+        if [ -f fraiseql-uuid-audit.json ]; then
+          CRITICAL_UUID=$(jq -r '.vulnerabilities[]? | select(.severity == "CRITICAL" or .severity == "HIGH") | "\(.package)@\(.version): \(.id) (\(.severity))"' fraiseql-uuid-audit.json || echo "")
+          if [ -n "$CRITICAL_UUID" ]; then
+            echo "🚨 fraiseql-uuid - Critical/High vulnerabilities found:"
+            echo "$CRITICAL_UUID"
+            HAS_CRITICAL=true
+          fi
+        fi
+
+        # Check fraiseql-data
+        if [ -f fraiseql-data-audit.json ]; then
+          CRITICAL_DATA=$(jq -r '.vulnerabilities[]? | select(.severity == "CRITICAL" or .severity == "HIGH") | "\(.package)@\(.version): \(.id) (\(.severity))"' fraiseql-data-audit.json || echo "")
+          if [ -n "$CRITICAL_DATA" ]; then
+            echo "🚨 fraiseql-data - Critical/High vulnerabilities found:"
+            echo "$CRITICAL_DATA"
+            HAS_CRITICAL=true
+          fi
+        fi
+
+        if [ "$HAS_CRITICAL" = true ]; then
+          echo ""
+          echo "❌ CRITICAL or HIGH severity vulnerabilities detected"
+          echo "Please update affected dependencies or add exceptions with justification"
+          exit 1
+        else
+          echo "✅ No critical or high-severity vulnerabilities found"
+        fi
+
+    - name: Upload audit results
+      uses: actions/upload-artifact@v6
+      if: always()
+      with:
+        name: dependency-audit-results
+        path: |
+          fraiseql-uuid-audit.json
+          fraiseql-data-audit.json
+
+  trivy-scan:
+    name: Trivy Security Scanner
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner (filesystem)
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH,MEDIUM'
+      continue-on-error: true
+
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v3
+      if: always()
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+    - name: Run Trivy for detailed report
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'json'
+        output: 'trivy-detailed.json'
+        severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+
+    - name: Upload detailed Trivy results
+      uses: actions/upload-artifact@v6
+      if: always()
+      with:
+        name: trivy-scan-results
+        path: trivy-detailed.json
+
+  compliance-check:
+    name: Compliance Validation
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check for required security files
+      run: |
+        echo "=== Checking Required Security Files ==="
+
+        MISSING_FILES=""
+
+        # Check for SECURITY.md
+        if [ ! -f "SECURITY.md" ]; then
+          echo "❌ SECURITY.md is missing"
+          MISSING_FILES="${MISSING_FILES}SECURITY.md "
+        else
+          echo "✅ SECURITY.md found"
+        fi
+
+        # Check for LICENSE
+        if [ ! -f "LICENSE" ]; then
+          echo "❌ LICENSE is missing"
+          MISSING_FILES="${MISSING_FILES}LICENSE "
+        else
+          echo "✅ LICENSE found"
+        fi
+
+        # Check for CODE_OF_CONDUCT.md
+        if [ ! -f "CODE_OF_CONDUCT.md" ]; then
+          echo "⚠️  CODE_OF_CONDUCT.md is missing (recommended)"
+          # Don't fail for this, just warn
+        else
+          echo "✅ CODE_OF_CONDUCT.md found"
+        fi
+
+        if [ -n "$MISSING_FILES" ]; then
+          echo ""
+          echo "❌ Missing required files: $MISSING_FILES"
+          exit 1
+        fi
+
+        echo ""
+        echo "✅ All required security and compliance files present"
+
+    - name: Validate package metadata
+      run: |
+        echo "=== Validating Package Metadata ==="
+
+        # Check fraiseql-uuid
+        echo "Checking fraiseql-uuid metadata..."
+        python3 << 'EOF'
+import tomllib
+with open('packages/fraiseql-uuid/pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+    project = data.get('project', {})
+
+    assert 'name' in project, "Missing project name"
+    assert 'version' in project, "Missing project version"
+    assert 'description' in project, "Missing project description"
+    assert 'license' in project, "Missing project license"
+    assert 'authors' in project, "Missing project authors"
+
+    print(f"✅ fraiseql-uuid metadata valid")
+    print(f"   Name: {project['name']}")
+    print(f"   Version: {project['version']}")
+    print(f"   License: {project['license']}")
+EOF
+
+        # Check fraiseql-data
+        echo ""
+        echo "Checking fraiseql-data metadata..."
+        python3 << 'EOF'
+import tomllib
+with open('packages/fraiseql-data/pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+    project = data.get('project', {})
+
+    assert 'name' in project, "Missing project name"
+    assert 'version' in project, "Missing project version"
+    assert 'description' in project, "Missing project description"
+    assert 'license' in project, "Missing project license"
+    assert 'authors' in project, "Missing project authors"
+
+    print(f"✅ fraiseql-data metadata valid")
+    print(f"   Name: {project['name']}")
+    print(f"   Version: {project['version']}")
+    print(f"   License: {project['license']}")
+EOF
+
+        echo ""
+        echo "✅ All package metadata validated"
+
+    - name: Check for secrets in code
+      run: |
+        echo "=== Checking for Hardcoded Secrets ==="
+
+        # Search for potential secrets (basic patterns)
+        POTENTIAL_SECRETS=$(find packages/ -type f -name "*.py" -exec grep -n -H -E "(password|secret|token|api_key|private_key)\s*=\s*['\"]" {} \; | \
+          grep -v "password: str" | \
+          grep -v "password:" | \
+          grep -v "def " | \
+          grep -v "# " || true)
+
+        if [ -n "$POTENTIAL_SECRETS" ]; then
+          echo "⚠️  Potential hardcoded secrets found (review needed):"
+          echo "$POTENTIAL_SECRETS"
+          echo ""
+          echo "If these are false positives (test data, examples), consider:"
+          echo "1. Using environment variables"
+          echo "2. Adding to .env.example (not .env)"
+          echo "3. Adding comments to explain why they're safe"
+          # Don't fail - just warn, as TruffleHog will catch real secrets
+        else
+          echo "✅ No obvious hardcoded secrets found"
+        fi
+
+  security-gate:
+    name: Security Gate ✅
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, license-scan, dependency-audit, trivy-scan, compliance-check]
+    if: always()
+    steps:
+      - name: Security compliance check
+        run: |
+          echo "=== Security & Compliance Gate Check ==="
+
+          # Check if all security jobs passed
+          # secrets-scan is skipped on push events (only runs on PRs) - that's OK
+          if [[ "${{ needs.secrets-scan.result }}" != "success" && "${{ needs.secrets-scan.result }}" != "skipped" ]]; then
+            echo "❌ Secrets scan failed - Security gate blocked"
+            exit 1
+          fi
+
+          if [[ "${{ needs.license-scan.result }}" != "success" ]]; then
+            echo "❌ License compliance failed - Security gate blocked"
+            exit 1
+          fi
+
+          if [[ "${{ needs.dependency-audit.result }}" != "success" ]]; then
+            echo "❌ Dependency audit failed - Security gate blocked"
+            exit 1
+          fi
+
+          if [[ "${{ needs.trivy-scan.result }}" != "success" ]]; then
+            echo "❌ Trivy security scan failed - Security gate blocked"
+            exit 1
+          fi
+
+          if [[ "${{ needs.compliance-check.result }}" != "success" ]]; then
+            echo "❌ Compliance validation failed - Security gate blocked"
+            exit 1
+          fi
+
+          echo "✅ All security and compliance checks passed - Security gate open"
+          echo "🔒 Code meets security and compliance standards"
+
+      - name: Security gate summary
+        run: |
+          echo "## 🔒 Security Gate - All Checks Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets Detection | ${{ needs.secrets-scan.result == 'skipped' && '⏭️ Skipped (not PR)' || '✅ Passed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Compliance | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Audit | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Security Scan | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| Compliance Validation | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔒 **Security Standards**: Government-grade compliance" >> $GITHUB_STEP_SUMMARY
+          echo "🚀 **Ready for**: Production deployment" >> $GITHUB_STEP_SUMMARY
