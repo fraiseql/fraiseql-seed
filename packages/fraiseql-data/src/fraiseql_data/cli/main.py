@@ -257,5 +257,174 @@ def inspect(ctx: click.Context, database: str | None, schema: str | None) -> Non
         sys.exit(1)
 
 
+@cli.command()
+@click.argument("tables", nargs=-1, required=True)
+@click.option(
+    "--database", default=None, help="Database connection string (or set DATABASE_URL env var)"
+)
+@click.option("--schema", default=None, help="Database schema")
+@click.option("--where", "where_clause", default=None, help="SQL WHERE clause for filtering")
+@click.option("--limit", type=int, default=None, help="Maximum rows per table")
+@click.option(
+    "--format",
+    "-f",
+    "output_format",
+    type=click.Choice(["json", "csv", "sql", "yaml"]),
+    default="json",
+    help="Output format",
+)
+@click.option(
+    "--output", "-o", type=click.Path(), default=None, help="Output file path (defaults to stdout)"
+)
+@click.option("--quiet", "-q", is_flag=True, help="Quiet mode (no progress messages)")
+@click.option(
+    "--batch-size",
+    type=int,
+    default=10000,
+    help="Number of rows to fetch at once (affects memory usage)",
+)
+@click.pass_context
+def export(
+    ctx: click.Context,
+    tables: tuple[str, ...],  # Click gives us a tuple
+    database: str | None,
+    schema: str | None,
+    where_clause: str | None,
+    limit: int | None,
+    output_format: str,
+    output: str | None,
+    quiet: bool,
+    batch_size: int,
+) -> None:
+    """Export existing database data.
+
+    Examples:
+
+        \b
+        # Export single table to JSON
+        fraiseql-data export users --database "postgresql://localhost/mydb"
+
+        \b
+        # Export multiple tables to CSV
+        fraiseql-data export users products --format csv
+
+        \b
+        # Export with WHERE clause (safe for SELECT conditions only)
+        fraiseql-data export users --where "status = 'active'" --format sql
+
+        \b
+        # Export with limit and save to file
+        fraiseql-data export logs --limit 1000 --format json -o logs.json
+    """
+    # Import at function level to avoid circular imports
+    import sys
+
+    from .errors import CLIError
+    from .handlers import ExportHandler
+    from .logging import get_logger
+    from .utils import display_error, get_database_url, sanitize_error_message
+
+    # Get configuration and logger
+    config = ctx.obj["config"]
+    logger = get_logger(debug=ctx.obj["debug"])
+
+    # Get database URL from:
+    # 1. --database option
+    # 2. DATABASE_URL environment variable
+    database_url = get_database_url(database)
+
+    # Apply config defaults
+    if schema is None:
+        schema = config.get_database_schema()
+    if not quiet:
+        quiet = config.get_quiet()
+
+    # Log command execution
+    logger.log_command(
+        "export",
+        {
+            "tables": list(tables),
+            "schema": schema,
+            "format": output_format,
+        },
+    )
+
+    try:
+        # Execute export operation
+        handler = ExportHandler(quiet=quiet, batch_size=batch_size)
+        exported_data = handler.execute(
+            database_url=database_url,
+            tables=list(tables),  # Convert tuple to list
+            schema=schema,
+            where_clause=where_clause,
+            limit=limit,
+        )
+
+        # Import exporter factory
+        from .exporters import get_exporter
+
+        # Get the appropriate exporter
+        exporter = get_exporter(output_format)
+
+        # Handle output formatting
+        if output_format == "json" and len(exported_data) > 1:
+            # For JSON with multiple tables, combine into single JSON object
+            combined_data = {}
+            for table_name, data in exported_data.items():
+                combined_data[table_name] = data["rows"]
+            # Use JSON exporter's custom serializer
+            import json
+
+            from .exporters import JSONExporter
+
+            output_text = json.dumps(combined_data, indent=2, default=JSONExporter._json_serializer)
+        elif not exporter.supports_multi_table():
+            # CSV can only handle one table - use first one
+            table_name, data = next(iter(exported_data.items()))
+            output_text = exporter.export_table(
+                table_name,
+                data["rows"],
+                schema=schema,
+            )
+        else:
+            # Multi-table formats (JSON single table, SQL, YAML)
+            output_parts = []
+            for table_name, data in exported_data.items():
+                table_output = exporter.export_table(
+                    table_name,
+                    data["rows"],
+                    schema=schema,
+                )
+                output_parts.append(table_output)
+
+            if len(output_parts) > 1:
+                output_text = "\n\n".join(output_parts)
+            else:
+                output_text = output_parts[0] if output_parts else ""
+
+        # Write to file or stdout
+        if output:
+            # Write to file
+            with open(output, "w") as f:
+                f.write(output_text)
+            if not quiet:
+                console.print(f"[green]✓[/green] Exported to {output}")
+        else:
+            # Write to stdout
+            click.echo(output_text)
+
+    except CLIError as e:
+        # Known error with exit code
+        logger.log_error(e, {"command": "export", "tables": list(tables)})
+        display_error(e)
+        sys.exit(e.exit_code)
+    except Exception as e:
+        # Unexpected error
+        logger.log_error(e, {"command": "export", "tables": list(tables)})
+        sanitized_message = sanitize_error_message(e)
+        console.print(f"[red]❌ Error:[/red] {sanitized_message}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     cli()

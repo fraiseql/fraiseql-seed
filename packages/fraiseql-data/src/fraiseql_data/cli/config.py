@@ -112,6 +112,14 @@ class Config:
         """
         return self.get("default_schema", "public")
 
+    def get_database_schema(self) -> str | None:
+        """Get database schema from config.
+
+        Returns:
+            Schema name if configured, None otherwise
+        """
+        return self.get("database_schema")
+
     def get_default_count(self) -> int:
         """Get default row count for data generation.
 
