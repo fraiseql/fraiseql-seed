@@ -57,7 +57,6 @@ Schema-aware seed data generation for PostgreSQL with Trinity pattern support.
   - [Linting](#linting)
 - [Architecture](#architecture)
 - [Roadmap](#roadmap)
-- [Contributing](#contributing)
 - [License](#license)
 - [Links](#links)
 
@@ -943,14 +942,12 @@ fraiseql-data uses a modular architecture:
 
 ## Contributing
 
-Contributions welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions welcome!
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License - see [LICENSE](../../LICENSE)
 
 ## Links
-
-- [Documentation](../../../docs/)
 - [Performance Benchmarks](PERFORMANCE.md)
-- [GitHub Issues](https://github.com/lionel/fraiseql-seed/issues)
+- [GitHub Issues](https://github.com/fraiseql/fraiseql-seed/issues)
