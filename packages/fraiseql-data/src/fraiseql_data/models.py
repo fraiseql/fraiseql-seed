@@ -246,6 +246,78 @@ class Seeds:
             return self._tables[name]
         raise AttributeError(f"No table '{name}' in seeds")
 
+    @classmethod
+    def from_json(
+        cls, file_path: Any | None = None, json_str: str | None = None
+    ) -> "Seeds":
+        """
+        Import seed data from JSON format.
+
+        Args:
+            file_path: Optional file path to read JSON from (str or Path)
+            json_str: Optional JSON string to parse
+
+        Returns:
+            Seeds object with imported data
+
+        Raises:
+            ValueError: If neither file_path nor json_str provided
+
+        Example:
+            >>> # Load from file
+            >>> seeds = Seeds.from_json("seed_data.json")
+            >>> # Or load from string
+            >>> seeds = Seeds.from_json(json_str=json_string)
+        """
+        import json
+        from pathlib import Path
+
+        if file_path is not None:
+            path = Path(file_path)
+            data = json.loads(path.read_text())
+        elif json_str is not None:
+            data = json.loads(json_str)
+        else:
+            raise ValueError("Must provide either file_path or json_str")
+
+        seeds = cls()
+        for table_name, rows_data in data.items():
+            rows = [SeedRow(_data=row_dict) for row_dict in rows_data]
+            seeds._tables[table_name] = rows
+
+        return seeds
+
+    @classmethod
+    def from_csv(cls, table_name: str, file_path: Any) -> "Seeds":
+        """
+        Import single table from CSV format.
+
+        Args:
+            table_name: Table name for the imported data
+            file_path: CSV file path (str or Path)
+
+        Returns:
+            Seeds object with imported table data
+
+        Example:
+            >>> seeds = Seeds.from_csv("tb_manufacturer", "manufacturers.csv")
+            >>> print(len(seeds.tb_manufacturer))
+        """
+        import csv
+        from pathlib import Path
+
+        seeds = cls()
+        rows = []
+
+        path = Path(file_path)
+        with path.open("r", newline="") as f:
+            reader = csv.DictReader(f)
+            for row_dict in reader:
+                rows.append(SeedRow(_data=row_dict))
+
+        seeds._tables[table_name] = rows
+        return seeds
+
     def to_json(self, file_path: Any | None = None, indent: int = 2) -> str | None:
         """
         Export seed data to JSON format.

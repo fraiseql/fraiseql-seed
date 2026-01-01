@@ -363,3 +363,82 @@ class SchemaIntrospector:
         """Clear cached introspection data."""
         self._table_cache.clear()
         self._dependency_graph_cache = None
+
+
+class MockIntrospector:
+    """
+    Mock introspector for staging backend (no database required).
+
+    Allows manually setting table schemas for testing without a database connection.
+    Used by SeedBuilder with backend="staging".
+    """
+
+    def __init__(self):
+        """Initialize with empty schema registry."""
+        self._schemas: dict[str, TableInfo] = {}
+
+    def set_table_schema(self, table_name: str, table_info: TableInfo) -> None:
+        """
+        Manually set table schema.
+
+        Args:
+            table_name: Table name
+            table_info: Table metadata
+
+        Example:
+            >>> introspector = MockIntrospector()
+            >>> table_info = TableInfo(name="users", columns=[...])
+            >>> introspector.set_table_schema("users", table_info)
+        """
+        self._schemas[table_name] = table_info
+
+    def get_table_info(self, table_name: str) -> TableInfo:
+        """
+        Get manually-set table schema.
+
+        Args:
+            table_name: Table name
+
+        Returns:
+            TableInfo for the table
+
+        Raises:
+            ValueError: If table schema not set
+        """
+        if table_name not in self._schemas:
+            raise ValueError(
+                f"Table schema not set for '{table_name}'. "
+                f"Call set_table_schema() first when using staging backend."
+            )
+        return self._schemas[table_name]
+
+    def get_dependency_graph(self) -> DependencyGraph:
+        """
+        Get dependency graph for set tables.
+
+        Returns:
+            DependencyGraph with FK relationships
+        """
+        # Build graph from manually-set schemas
+        graph = DependencyGraph()
+
+        for table_name, table_info in self._schemas.items():
+            # Add table
+            graph.add_table(table_name)
+
+            # Add FK dependencies (skip self-references)
+            for fk in table_info.foreign_keys:
+                if not fk.is_self_referencing:
+                    graph.add_dependency(table_name, fk.referenced_table)
+
+        return graph
+
+    def topological_sort(self) -> list[str]:
+        """
+        Sort tables in dependency order.
+
+        Returns:
+            List of table names in dependency order
+        """
+        graph = self.get_dependency_graph()
+        return graph.topological_sort()

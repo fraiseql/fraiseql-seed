@@ -46,7 +46,7 @@ def test_check_constraint_introspection(db_conn: Connection, test_schema: str):
 
 
 def test_check_constraint_warning(db_conn: Connection, test_schema: str, caplog):
-    """Test warning emitted for CHECK constraint without override."""
+    """Test auto-satisfaction of simple CHECK constraints (Phase 4)."""
     # Create table with CHECK constraint
     with db_conn.cursor() as cur:
         cur.execute(
@@ -62,30 +62,29 @@ def test_check_constraint_warning(db_conn: Connection, test_schema: str, caplog)
         )
         db_conn.commit()
 
-    # Seed without override (should emit warning)
+    # Seed without override (should auto-satisfy CHECK constraint)
     import logging
 
-    logging.getLogger("fraiseql_data.builder").setLevel(logging.WARNING)
+    logging.getLogger("fraiseql_data.builder").setLevel(logging.INFO)
 
     builder = SeedBuilder(db_conn, schema=test_schema)
 
-    # This should emit a warning about CHECK constraint
-    try:
-        builder.add("tb_item", count=5).execute()
-        # If it succeeds, check that warning was logged
-        # (or it might fail if generated data violates CHECK)
-    except Exception:
-        pass  # Expected if generated data violates CHECK
+    # This should auto-satisfy the CHECK constraint
+    seeds = builder.add("tb_item", count=5).execute()
 
-    # Verify warning was logged
-    # Look for CHECK constraint warning in logs
-    warning_found = False
+    # Verify data generated successfully with valid status values
+    assert len(seeds.tb_item) == 5
+    for item in seeds.tb_item:
+        assert item.status in ["active", "inactive", "discontinued"]
+
+    # Verify auto-satisfaction was logged (INFO level)
+    auto_satisfy_found = False
     for record in caplog.records:
-        if "CHECK constraint" in record.message or "check" in record.message.lower():
-            warning_found = True
+        if "Auto-satisfying CHECK constraint" in record.message:
+            auto_satisfy_found = True
             break
 
-    assert warning_found, "Should emit warning for CHECK constraint"
+    assert auto_satisfy_found, "Should log auto-satisfaction of CHECK constraint"
 
 
 def test_check_constraint_with_override(db_conn: Connection, test_schema: str):

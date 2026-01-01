@@ -5,7 +5,7 @@ from typing import Any
 from fraiseql_uuid import Pattern
 from psycopg import Connection
 
-from fraiseql_data.backends.direct import DirectBackend
+# Note: Backend and introspector imports moved to __init__ for lazy loading
 from fraiseql_data.exceptions import (
     ColumnGenerationError,
     ForeignKeyResolutionError,
@@ -13,38 +13,206 @@ from fraiseql_data.exceptions import (
     UniqueConstraintError,
 )
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
-from fraiseql_data.introspection import SchemaIntrospector
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
 
 # Constants for generation logic
 MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
 
 
-class SeedBuilder:
-    """Declarative API for building and executing seed data plans."""
+class BatchContext:
+    """Context manager for batch seed operations with fluent API."""
 
-    def __init__(self, conn: Connection, schema: str):
+    def __init__(self, builder: "SeedBuilder"):
         """
-        Initialize SeedBuilder.
+        Initialize batch context.
 
         Args:
-            conn: PostgreSQL connection
-            schema: Schema name
-
-        Raises:
-            SchemaNotFoundError: If schema doesn't exist
+            builder: SeedBuilder instance
         """
-        self.conn = conn
-        self.schema = schema
-        self.introspector = SchemaIntrospector(conn, schema)
-        self.backend = DirectBackend(conn, schema)
-        self.pattern = Pattern()
-        self._plan: list[SeedPlan] = []
+        self.builder = builder
+        self._operations: list[SeedPlan] = []
 
     def add(
         self,
         table: str,
-        count: int,
+        count: int | Any,  # Allow callable
+        strategy: str = "faker",
+        overrides: dict[str, Any] | None = None,
+    ) -> "BatchContext":
+        """
+        Add table to batch (chainable).
+
+        Args:
+            table: Table name
+            count: Number of rows or callable returning count
+            strategy: Generation strategy (default: "faker")
+            overrides: Column overrides
+
+        Returns:
+            Self for chaining
+        """
+        # Resolve callable count immediately
+        if callable(count):
+            count = count()
+
+        self._operations.append(
+            SeedPlan(
+                table=table,
+                count=count,
+                strategy=strategy,
+                overrides=overrides or {},
+            )
+        )
+        return self
+
+    def when(self, condition: bool) -> "ConditionalContext":
+        """
+        Create conditional context for conditional operations.
+
+        Args:
+            condition: Whether to execute subsequent operations
+
+        Returns:
+            ConditionalContext for conditional chaining
+
+        Example:
+            >>> with builder.batch() as batch:
+            >>>     batch.add("tb_manufacturer", count=10)
+            >>>     batch.when(include_models).add("tb_model", count=50)
+        """
+        return ConditionalContext(self, condition)
+
+    def execute(self) -> Seeds:
+        """
+        Execute all batched operations.
+
+        Returns:
+            Seeds object with generated data
+        """
+        # Add all operations to builder's plan
+        for operation in self._operations:
+            self.builder._plan.append(operation)
+
+        # Execute builder
+        return self.builder.execute()
+
+    def __enter__(self) -> "BatchContext":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit context manager - auto-execute if no exception."""
+        if exc_type is None:
+            self.execute()
+
+
+class ConditionalContext:
+    """Conditional operations for batch context."""
+
+    def __init__(self, batch: BatchContext, condition: bool):
+        """
+        Initialize conditional context.
+
+        Args:
+            batch: Parent BatchContext
+            condition: Whether to execute operations
+        """
+        self.batch = batch
+        self.condition = condition
+
+    def add(
+        self,
+        table: str,
+        count: int | Any,  # Allow callable
+        strategy: str = "faker",
+        overrides: dict[str, Any] | None = None,
+    ) -> BatchContext:
+        """
+        Add table only if condition is true.
+
+        Args:
+            table: Table name
+            count: Number of rows or callable returning count
+            strategy: Generation strategy
+            overrides: Column overrides
+
+        Returns:
+            Parent BatchContext for continued chaining
+        """
+        if self.condition:
+            # Resolve callable count if needed
+            if callable(count):
+                count = count()
+
+            self.batch._operations.append(
+                SeedPlan(
+                    table=table,
+                    count=count,
+                    strategy=strategy,
+                    overrides=overrides or {},
+                )
+            )
+
+        return self.batch
+
+
+class SeedBuilder:
+    """Declarative API for building and executing seed data plans."""
+
+    def __init__(
+        self,
+        conn: Connection | None,
+        schema: str,
+        backend: str = "direct",
+    ):
+        """
+        Initialize SeedBuilder.
+
+        Args:
+            conn: PostgreSQL connection (None for staging backend)
+            schema: Schema name
+            backend: Backend type - "direct" (database) or "staging" (in-memory)
+
+        Raises:
+            SchemaNotFoundError: If schema doesn't exist (direct backend only)
+
+        Example:
+            >>> # Database backend (default)
+            >>> builder = SeedBuilder(conn, schema="test")
+            >>>
+            >>> # Staging backend (no database)
+            >>> builder = SeedBuilder(None, schema="test", backend="staging")
+        """
+        self.conn = conn
+        self.schema = schema
+        self.pattern = Pattern()
+        self._plan: list[SeedPlan] = []
+
+        if backend == "staging":
+            # Staging backend - no database required
+            from fraiseql_data.backends.staging import StagingBackend
+            from fraiseql_data.introspection import MockIntrospector
+
+            self.backend = StagingBackend()
+            self.introspector = MockIntrospector()
+        else:
+            # Direct backend - requires database connection
+            if conn is None:
+                raise ValueError(
+                    "Database connection required for direct backend. "
+                    "Use backend='staging' for in-memory testing without database."
+                )
+
+            from fraiseql_data.backends.direct import DirectBackend
+            from fraiseql_data.introspection import SchemaIntrospector
+
+            self.backend = DirectBackend(conn, schema)
+            self.introspector = SchemaIntrospector(conn, schema)
+
+    def add(
+        self,
+        table: str,
+        count: int | Any,  # Allow callable for dynamic count
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
     ) -> "SeedBuilder":
@@ -53,7 +221,7 @@ class SeedBuilder:
 
         Args:
             table: Table name
-            count: Number of rows to generate
+            count: Number of rows to generate (int or callable returning int)
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides (callable or value)
 
@@ -62,9 +230,19 @@ class SeedBuilder:
 
         Raises:
             TableNotFoundError: If table doesn't exist in schema
+
+        Example:
+            >>> # Static count
+            >>> builder.add("users", count=10)
+            >>> # Dynamic count via callable
+            >>> builder.add("users", count=lambda: random.randint(5, 15))
         """
         # Validate table exists (raises TableNotFoundError if not)
         self.introspector.get_table_info(table)
+
+        # Resolve callable count
+        if callable(count):
+            count = count()
 
         self._plan.append(
             SeedPlan(
@@ -144,6 +322,99 @@ class SeedBuilder:
 
         return seeds
 
+    def insert_seeds(self, seeds: Seeds) -> Seeds:
+        """
+        Insert pre-loaded seed data into database.
+
+        This method is used to insert seed data that was previously exported
+        or loaded from JSON/CSV files. It bypasses generation and directly
+        inserts the provided data into the database.
+
+        Args:
+            seeds: Seeds object containing pre-loaded data
+
+        Returns:
+            Seeds object with database-generated values (pk_*, timestamps)
+
+        Raises:
+            TableNotFoundError: If table in seeds doesn't exist in schema
+
+        Example:
+            >>> # Load from JSON
+            >>> imported = Seeds.from_json("fixtures.json")
+            >>> # Insert into database
+            >>> builder = SeedBuilder(conn, schema="test")
+            >>> result = builder.insert_seeds(imported)
+            >>> # result now has database-generated PKs
+        """
+        result = Seeds()
+
+        for table_name, rows in seeds._tables.items():
+            # Validate table exists
+            table_info = self.introspector.get_table_info(table_name)
+
+            # Convert SeedRow objects to dicts
+            row_dicts = [row._data for row in rows]
+
+            # Insert via backend (gets database-generated values)
+            inserted_rows = self.backend.insert_rows(table_info, row_dicts, bulk=True)
+
+            # Store in result Seeds object
+            result.add_table(table_name, inserted_rows)
+
+        return result
+
+    def batch(self) -> BatchContext:
+        """
+        Create a batch context manager for fluent multi-table seeding.
+
+        Returns:
+            BatchContext for chaining operations
+
+        Example:
+            >>> # Auto-execute on context exit
+            >>> with builder.batch() as batch:
+            >>>     batch.add("tb_manufacturer", count=10)
+            >>>     batch.add("tb_product", count=100)
+            >>>
+            >>> # Conditional operations
+            >>> with builder.batch() as batch:
+            >>>     batch.add("tb_manufacturer", count=10)
+            >>>     batch.when(include_models).add("tb_model", count=50)
+            >>>
+            >>> # Manual execution
+            >>> batch = builder.batch()
+            >>> batch.add("users", count=10)
+            >>> seeds = batch.execute()
+        """
+        return BatchContext(self)
+
+    def set_table_schema(self, table_name: str, table_info: TableInfo) -> None:
+        """
+        Set table schema manually (for staging backend only).
+
+        Args:
+            table_name: Table name
+            table_info: Table metadata
+
+        Raises:
+            ValueError: If not using staging backend
+
+        Example:
+            >>> builder = SeedBuilder(None, schema="test", backend="staging")
+            >>> table_info = TableInfo(name="users", columns=[...])
+            >>> builder.set_table_schema("users", table_info)
+        """
+        from fraiseql_data.introspection import MockIntrospector
+
+        if isinstance(self.introspector, MockIntrospector):
+            self.introspector.set_table_schema(table_name, table_info)
+        else:
+            raise ValueError(
+                "set_table_schema() only available with staging backend. "
+                "Use backend='staging' when initializing SeedBuilder."
+            )
+
     def _generate_rows(
         self,
         table_info: TableInfo,
@@ -176,18 +447,33 @@ class SeedBuilder:
         faker_gen = FakerGenerator()
         trinity_gen = TrinityGenerator(self.pattern, table_info.name)
 
-        # Warn about CHECK constraints
+        # Parse CHECK constraints and build rules
+        check_rules: dict[str, Any] = {}
         if table_info.check_constraints:
             import logging
 
+            from fraiseql_data.constraint_parser import CheckConstraintParser
+
             logger = logging.getLogger("fraiseql_data.builder")
+            parser = CheckConstraintParser()
+
             for constraint in table_info.check_constraints:
-                logger.warning(
-                    f"Table '{table_info.name}' has CHECK constraint "
-                    f"'{constraint.constraint_name}': {constraint.check_clause}. "
-                    f"Auto-generated data may violate this constraint. "
-                    f"Consider providing overrides for affected columns."
-                )
+                rule = parser.parse(constraint.check_clause)
+                if rule:
+                    # Successfully parsed - can auto-satisfy
+                    check_rules[rule.column] = rule
+                    logger.info(
+                        f"Auto-satisfying CHECK constraint on '{rule.column}': "
+                        f"{constraint.check_clause}"
+                    )
+                else:
+                    # Too complex - emit warning
+                    logger.warning(
+                        f"Table '{table_info.name}' has complex CHECK constraint "
+                        f"'{constraint.constraint_name}': {constraint.check_clause}. "
+                        f"Auto-generated data may violate this constraint. "
+                        f"Consider providing overrides for affected columns."
+                    )
 
         # Track UNIQUE column values to avoid duplicates
         unique_values: dict[str, set[Any]] = {}
@@ -257,6 +543,12 @@ class SeedBuilder:
                             row[col.name] = override()
                     else:
                         row[col.name] = override
+                    continue
+
+                # Check if column has auto-satisfiable CHECK constraint
+                if col.name in check_rules:
+                    rule = check_rules[col.name]
+                    row[col.name] = rule.generate()
                     continue
 
                 # Generate using strategy
