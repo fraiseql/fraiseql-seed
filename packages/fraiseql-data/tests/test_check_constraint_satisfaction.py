@@ -68,6 +68,37 @@ def test_auto_satisfy_range_constraint(db_conn, test_schema):
         assert product.stock >= 0, f"Stock negative: {product.stock}"
 
 
+def test_range_constraint_operators(db_conn, test_schema):
+    """Test all range constraint operators (<, <=, BETWEEN)."""
+    # Create table with various range CHECK constraints
+    with db_conn.cursor() as cur:
+        cur.execute(
+            f"""
+            CREATE TABLE {test_schema}.tb_range_test (
+                pk_test INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+                id UUID NOT NULL UNIQUE,
+                identifier TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL,
+                score NUMERIC CHECK (score > 50),           -- greater than 50
+                level INTEGER CHECK (level <= 10),          -- less than or equal to 10
+                rating NUMERIC CHECK (rating BETWEEN 1.0 AND 5.0)  -- between 1.0-5.0
+            )
+        """
+        )
+        db_conn.commit()
+
+    # Generate seed data WITHOUT manually providing overrides
+    builder = SeedBuilder(db_conn, schema=test_schema)
+    seeds = builder.add("tb_range_test", count=20).execute()
+
+    # Verify all rows satisfy ALL range constraints
+    assert len(seeds.tb_range_test) == 20
+    for row in seeds.tb_range_test:
+        assert row.score > 50, f"Score not > 50: {row.score}"
+        assert row.level <= 10, f"Level not <= 10: {row.level}"
+        assert 1.0 <= row.rating <= 5.0, f"Rating out of range: {row.rating}"
+
+
 def test_complex_check_emits_warning(db_conn, test_schema, caplog):
     """Test that complex CHECK constraints emit warnings (cannot auto-satisfy)."""
     # Create table with complex CHECK constraint (cannot be auto-parsed)
