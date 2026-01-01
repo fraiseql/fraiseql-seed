@@ -140,12 +140,14 @@ def test_order_analytics(seeds):
 Debuggable UUIDs that encode table and instance information.
 
 ```python
-from fraiseql_uuid import UUIDGenerator
+from fraiseql_uuid import Pattern, UUIDGenerator
 
-gen = UUIDGenerator(pattern="product")
+pattern = Pattern()
+gen = UUIDGenerator(pattern, table_code="012345")
 uuid = gen.generate(instance=1)
-# → "3a4b5c21-0000-4000-8000-000000000001"
-#    ^^^^^^ table code    ^^^^ instance number
+# → "01234521-0000-4000-8000-000000000001"
+#    ^^^^^^ table code (012345)    ^^^^ instance (1)
+#          ^^ seed_dir (21 = general)
 ```
 
 [📖 Full Documentation](./packages/fraiseql-uuid/README.md)
@@ -345,10 +347,10 @@ Uses [fraiseql-uuid](#fraiseql-uuid) for debuggable UUIDs:
 @seed_data("products", count=100)
 def test_uuids(seeds):
     product = seeds.products[0]
-    # UUID: 3a4b5c21-0000-4000-8000-000000000001
-    #       ^^^^^^ ---- table code
-    #              ^^-- seed direction
-    #                              ^^^^ instance
+    # UUID: 86024c21-0000-4000-8000-000000000001
+    #       ^^^^^^ ---- table code (MD5 hash of "products")
+    #             ^^-- seed_dir (21 = general)
+    #                              ^^^^ instance number
     print(product.id)  # Easy to recognize in logs!
 ```
 
