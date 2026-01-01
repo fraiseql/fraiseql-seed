@@ -1,0 +1,32 @@
+# Seed Common Baseline - Staging Environment
+#
+# Environment-specific seed common for staging/QA environment.
+# Loaded when FRAISEQL_ENV=staging or ENV=staging
+#
+# Minimal baseline for staging - production-like but lightweight.
+
+baseline:
+  # Core entities (production-like minimal set)
+  tb_organization: 3      # Representative orgs only
+  tb_location: 2          # Main + backup location
+  tb_machine: 5           # Small machine inventory
+  tb_contract: 2          # Standard contract types
+
+  # Users (staging accounts)
+  tb_user: 5              # QA team accounts
+  tb_role: 5              # Core roles only
+
+  # Reference data (minimal)
+  tb_status: 5            # Essential statuses only
+  tb_category: 5          # Main categories
+  tb_product_type: 3      # Core product types
+
+# Staging philosophy:
+# - Minimal baseline to reduce test execution time
+# - Production-like structure but smaller scale
+# - Stable data for CI/CD pipelines
+#
+# Usage:
+#   export ENV=staging
+#   builder = SeedBuilder(conn, schema="public", seed_common="db/")
+#   # Auto-loads seed_common.staging.yaml

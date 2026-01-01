@@ -35,8 +35,12 @@ from fraiseql_data import SeedBuilder
 # Connect to database
 conn = connect("postgresql://user:pass@localhost/mydb")
 
-# Build seed plan
-builder = SeedBuilder(conn, schema="public")
+# Build seed plan (with seed common baseline)
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/seed_common.yaml"  # Optional but recommended
+)
 seeds = (
     builder
     .add("tb_manufacturer", count=10)
@@ -503,9 +507,193 @@ assert len(seeds.tb_region) == 1
 assert len(seeds.tb_room) == 100
 ```
 
-**Limitations:**
-- Default behavior creates new data each time (no reuse of existing rows)
-- `reuse_existing` parameter available for future enhancement
+## Phase 6 Features (New!)
+
+### Seed Common Baseline
+
+Define a required baseline layer that all test data builds upon, eliminating UUID collisions:
+
+```python
+# Define seed common baseline
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/seed_common.yaml"  # Baseline file
+)
+
+# Test data automatically starts after seed common range
+seeds = builder.add("tb_allocation", count=100, auto_deps=True).execute()
+```
+
+**Instance Range Separation:**
+- **1 - 1,000**: Seed common (reserved baseline, never changes)
+- **1,001 - 999,999**: Test data (generated per test run)
+- **1,000,000+**: Runtime generated (mass data generation)
+
+#### Format 1: Baseline Counts (Simple)
+
+Define just the instance counts per table:
+
+```yaml
+# db/seed_common.yaml
+baseline:
+  tb_organization: 5      # 5 organizations in baseline
+  tb_machine: 10          # 10 machines
+  tb_contract: 2          # 2 contracts
+```
+
+#### Format 2: Explicit Data (Deterministic)
+
+Define exact baseline data with specific values:
+
+```yaml
+# db/seed_common.yaml
+tb_organization:
+  - identifier: "org-internal"
+    name: "Internal Organization"
+    org_type: "internal"
+
+  - identifier: "org-customer-acme"
+    name: "ACME Corporation"
+    org_type: "customer"
+
+tb_location:
+  - identifier: "loc-warehouse-main"
+    name: "Main Warehouse"
+    fk_organization: 1  # References instance 1
+```
+
+#### Environment-Specific Baselines
+
+Different baselines for dev/staging/production:
+
+```yaml
+# db/seed_common.dev.yaml (development)
+baseline:
+  tb_organization: 20    # More data for realistic dev testing
+  tb_machine: 50
+
+# db/seed_common.staging.yaml (CI/CD)
+baseline:
+  tb_organization: 3     # Minimal for fast test execution
+  tb_machine: 5
+```
+
+**Auto-detection:**
+```python
+import os
+os.environ['FRAISEQL_ENV'] = 'dev'  # or 'staging', 'prod'
+
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/"  # Auto-loads seed_common.dev.yaml
+)
+```
+
+**Resolution order:**
+1. `seed_common.{ENV}.yaml` (if `FRAISEQL_ENV` or `ENV` set)
+2. `seed_common.yaml` (fallback)
+3. `seed_common.json`
+4. `1_seed_common/*.sql` (backward compatible SQL format)
+
+#### Auto-Deps with Seed Common
+
+Auto-dependencies use seed common instead of generating duplicates:
+
+```python
+# Seed common has 5 organizations
+builder = SeedBuilder(conn, schema="public", seed_common="db/")
+
+# Auto-deps uses existing organizations from seed common
+seeds = builder.add(
+    "tb_allocation",
+    count=100,
+    auto_deps={"tb_organization": 3}  # Uses 3 from seed common
+).execute()
+
+# Result: No new organizations generated (uses baseline)
+assert len(seeds.tb_organization) == 0  # Satisfied by seed common
+```
+
+**When seed common insufficient:**
+```python
+# Seed common has 5 organizations, but need 10
+seeds = builder.add(
+    "tb_allocation",
+    count=100,
+    auto_deps={"tb_organization": 10}
+).execute()
+
+# Result: Generates 5 more (10 - 5 from seed common = 5 new)
+assert len(seeds.tb_organization) == 5  # Generated the difference
+```
+
+#### FK Validation
+
+Seed common validates FK relationships on load:
+
+```python
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/seed_common.yaml",  # Validates by default
+)
+
+# Validation checks:
+# - All FK references exist within seed common
+# - FK values within valid instance ranges (1-1,000)
+# - No circular dependencies
+# - Instance counts ≤ SEED_COMMON_MAX (1,000)
+```
+
+**Disable validation:**
+```python
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/seed_common.yaml",
+    validate_seed_common=False  # Skip validation
+)
+```
+
+#### Self-Documenting Trinity UUIDs
+
+Trinity pattern UUIDs encode instance numbers for traceability:
+
+```python
+# Seed common instance 5:
+# UUID: 2a6f3c21-0000-4000-8000-000000000005
+#                                  ^^^^^^^^^^^^ instance number
+
+# Test data instance 1,001:
+# UUID: 2a6f3c21-0000-4000-8000-000000001001
+#                                  ^^^^^^^^^^^^ instance number
+
+# You can identify data origin from UUID alone!
+```
+
+#### Migration from Phase 5
+
+Phase 6 replaces `reuse_existing` with seed common:
+
+```python
+# ❌ Phase 5 (removed in Phase 6)
+builder.add("table", count=10, auto_deps=True, reuse_existing=True)
+
+# ✅ Phase 6 (seed common baseline)
+builder = SeedBuilder(conn, schema="test", seed_common="db/seed_common.yaml")
+builder.add("table", count=10, auto_deps=True)
+```
+
+**Benefits:**
+- ✅ No database queries for reuse (faster)
+- ✅ Deterministic baseline (reproducible tests)
+- ✅ Environment-specific baselines
+- ✅ Self-documenting UUIDs
+- ✅ FK validation on load
+
+**See:** `examples/seed_common/` for complete examples
 
 ## pytest Integration
 
@@ -547,12 +735,34 @@ Main API for declarative seed generation.
 ```python
 from fraiseql_data import SeedBuilder
 
+# With seed common (recommended)
+builder = SeedBuilder(
+    conn,
+    schema="public",
+    seed_common="db/seed_common.yaml"
+)
+
+# Without seed common (shows warning)
 builder = SeedBuilder(conn, schema="public")
+
+# Staging backend (no database)
+builder = SeedBuilder(None, schema="test", backend="staging")
 ```
+
+**Parameters:**
+- `conn` (Connection | None): PostgreSQL connection (None for staging backend)
+- `schema` (str): Schema name
+- `backend` (str): Backend type - "direct" (database) or "staging" (in-memory)
+- `seed_common` (str | Path | SeedCommon | None): Seed common baseline
+  - Path to YAML/JSON file
+  - Path to directory (auto-detects format and environment)
+  - SeedCommon instance
+  - None (shows warning, may cause UUID collisions)
+- `validate_seed_common` (bool): Validate FK references (default: True)
 
 #### Methods
 
-**`add(table, count, strategy="faker", overrides=None, auto_deps=False, reuse_existing=False)`**
+**`add(table, count, strategy="faker", overrides=None, auto_deps=False)`**
 
 Add table to seed plan.
 
@@ -565,7 +775,6 @@ Add table to seed plan.
   - `False`: No auto-deps (default)
   - `True`: Generate 1 of each dependency (minimal)
   - `dict`: Explicit counts/overrides per dependency table
-- `reuse_existing` (bool): Reuse existing database rows for dependencies (default: False)
 
 ```python
 # Basic usage
@@ -722,6 +931,7 @@ fraiseql-data uses a modular architecture:
 - **Introspection:** Query information_schema for tables, columns, FKs, UNIQUE constraints, CHECK constraints
 - **Dependency Graph:** Topological sort for correct insertion order
 - **Auto-Dependency Resolver:** Recursive FK traversal, DAG-based deduplication, multi-path handling
+- **Seed Common:** Baseline management with multi-format support (YAML, JSON, SQL), FK validation, environment detection
 - **Generators:** Faker, Trinity, Sequential, CHECK constraint satisfaction (extensible)
 - **Backends:** DirectBackend (bulk INSERT), StagingBackend (in-memory), future: CopyBackend
 - **Import/Export:** JSON and CSV with automatic type conversion
@@ -758,8 +968,15 @@ fraiseql-data uses a modular architecture:
 - ✅ Deep hierarchy support (6+ levels)
 - ✅ Batch integration with auto-deps
 
+**Phase 6 (Complete):**
+- ✅ Seed common baseline system
+- ✅ Multi-format support (YAML, JSON, SQL)
+- ✅ Environment-specific baselines
+- ✅ FK validation on load
+- ✅ Instance range separation (1-1K seed, 1K-1M test, 1M+ generated)
+- ✅ Self-documenting Trinity UUIDs
+
 **Future:**
-- `reuse_existing` feature (reuse database rows instead of generating new)
 - Custom generator plugins
 - COPY backend for massive datasets (10x faster)
 - Parallel batch processing

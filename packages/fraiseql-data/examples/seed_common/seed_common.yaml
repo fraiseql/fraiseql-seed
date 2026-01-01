@@ -1,0 +1,25 @@
+# Seed Common Baseline (Format 1: Instance Counts)
+#
+# This defines the required baseline layer that all test data builds upon.
+# Seed common eliminates UUID collisions and provides clear separation between:
+# - Instances 1-1,000: Seed common (reserved baseline)
+# - Instances 1,001-999,999: Test data (test-specific)
+# - Instances 1,000,000+: Generated data (runtime)
+
+baseline:
+  # Core entities (minimal baseline for testing)
+  tb_organization: 5      # 5 organizations in baseline
+  tb_location: 3          # 3 locations
+  tb_machine: 10          # 10 machines
+  tb_contract: 2          # 2 contracts
+
+  # Reference data (static lookup tables)
+  tb_status: 5            # Status codes (active, pending, etc.)
+  tb_category: 8          # Product/service categories
+
+# Usage:
+#   builder = SeedBuilder(conn, schema="public", seed_common="db/seed_common.yaml")
+#   seeds = builder.add("tb_allocation", count=100, auto_deps=True).execute()
+#
+#   Auto-deps will use seed common instances instead of generating new ones.
+#   Test data starts at instance 1,001 (after seed common range).

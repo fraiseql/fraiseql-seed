@@ -1,0 +1,33 @@
+# Seed Common Baseline - Development Environment
+#
+# Environment-specific seed common for local development.
+# Loaded when FRAISEQL_ENV=dev or ENV=dev
+#
+# Use larger baseline for development to simulate realistic scenarios.
+
+baseline:
+  # Core entities (more data for dev)
+  tb_organization: 20     # 20 organizations for realistic testing
+  tb_location: 15         # Multiple locations per org
+  tb_machine: 50          # Diverse machine inventory
+  tb_contract: 10         # Various contract types
+
+  # Users and permissions (dev accounts)
+  tb_user: 25             # Dev team members + test accounts
+  tb_role: 8              # Different permission levels
+
+  # Reference data
+  tb_status: 10           # All possible statuses
+  tb_category: 20         # Rich category hierarchy
+  tb_product_type: 15     # Product classifications
+
+# Environment resolution order:
+# 1. seed_common.dev.yaml (when ENV=dev) ← This file
+# 2. seed_common.yaml (fallback)
+# 3. seed_common.json
+# 4. 1_seed_common/*.sql
+#
+# Usage:
+#   export ENV=dev
+#   builder = SeedBuilder(conn, schema="public", seed_common="db/")
+#   # Auto-loads seed_common.dev.yaml
