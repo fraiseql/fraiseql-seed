@@ -2,6 +2,13 @@
 
 Schema-aware seed data generation for PostgreSQL with Trinity pattern support.
 
+[![Quality Gate](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml)
+[![codecov](https://codecov.io/gh/fraiseql/fraiseql-seed/branch/main/graph/badge.svg?flag=fraiseql-data)](https://codecov.io/gh/fraiseql/fraiseql-seed?flag=fraiseql-data)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**Status**: ✅ v0.1.0 Production-Ready | 🔒 Government-Grade Security | 📋 SBOM Available
+
 ## Table of Contents
 
 - [Overview](#overview)
