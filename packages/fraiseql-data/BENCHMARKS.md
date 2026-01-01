@@ -79,7 +79,7 @@ CREATE TABLE tb_post (
     identifier VARCHAR(255) NOT NULL,
     title VARCHAR(500) NOT NULL,
     content TEXT,
-    user_id BIGINT NOT NULL REFERENCES tb_user(pk_user),  -- FK constraint
+    fk_user BIGINT NOT NULL REFERENCES tb_user(pk_user),  -- FK constraint
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 )
 ```

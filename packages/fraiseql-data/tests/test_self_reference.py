@@ -55,7 +55,7 @@ def test_self_reference_non_nullable_error(db_conn: Connection, test_schema: str
             CREATE TABLE {test_schema}.tb_node (
                 pk_node INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                 name TEXT NOT NULL,
-                parent_node INTEGER NOT NULL REFERENCES {test_schema}.tb_node(pk_node)
+                fk_parent INTEGER NOT NULL REFERENCES {test_schema}.tb_node(pk_node)
             )
         """
         )

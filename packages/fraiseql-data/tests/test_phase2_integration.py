@@ -133,7 +133,7 @@ def test_complex_hierarchy(db_conn: Connection, test_schema: str):
                 id UUID NOT NULL UNIQUE,
                 identifier TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL,
-                manager_id INTEGER REFERENCES {test_schema}.tb_employee(pk_employee)
+                fk_manager INTEGER REFERENCES {test_schema}.tb_employee(pk_employee)
             )
             """
         )
@@ -146,18 +146,18 @@ def test_complex_hierarchy(db_conn: Connection, test_schema: str):
     assert len(seeds.tb_employee) == 30
 
     # First employee has no manager
-    assert seeds.tb_employee[0]._data["manager_id"] is None
+    assert seeds.tb_employee[0]._data["fk_manager"] is None
 
     # Remaining employees should mostly have managers
     employees_with_managers = [
-        emp for emp in seeds.tb_employee if emp._data["manager_id"] is not None
+        emp for emp in seeds.tb_employee if emp._data["fk_manager"] is not None
     ]
     assert len(employees_with_managers) >= 25, "Most employees should have managers"
 
     # Verify no circular references (employee can't be own manager)
     for emp in seeds.tb_employee:
-        manager_id = emp._data["manager_id"]
-        if manager_id is not None:
+        fk_manager = emp._data["fk_manager"]
+        if fk_manager is not None:
             assert (
-                manager_id != emp._data["pk_employee"]
+                fk_manager != emp._data["pk_employee"]
             ), "Employee can't be own manager"
