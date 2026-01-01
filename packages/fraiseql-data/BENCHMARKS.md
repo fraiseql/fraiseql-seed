@@ -19,7 +19,7 @@ Performance benchmarks for fraiseql-data v0.1.0.
 **Schema**:
 ```sql
 CREATE TABLE tb_user (
-    pk_user BIGSERIAL PRIMARY KEY,
+    pk_user BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID NOT NULL,
     identifier VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -74,7 +74,7 @@ seeds = builder.add("tb_user", count=10000).execute()
 **Schema**:
 ```sql
 CREATE TABLE tb_post (
-    pk_post BIGSERIAL PRIMARY KEY,
+    pk_post BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     id UUID NOT NULL,
     identifier VARCHAR(255) NOT NULL,
     title VARCHAR(500) NOT NULL,
