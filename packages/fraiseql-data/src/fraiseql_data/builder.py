@@ -1,5 +1,6 @@
 """SeedBuilder API for declarative seed generation."""
 
+import logging
 from typing import Any
 
 from fraiseql_uuid import Pattern
@@ -14,6 +15,8 @@ from fraiseql_data.exceptions import (
 )
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
+
+logger = logging.getLogger(__name__)
 
 # Constants for generation logic
 MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
@@ -38,6 +41,8 @@ class BatchContext:
         count: int | Any,  # Allow callable
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
+        auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        reuse_existing: bool = False,
     ) -> "BatchContext":
         """
         Add table to batch (chainable).
@@ -47,6 +52,8 @@ class BatchContext:
             count: Number of rows or callable returning count
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides
+            auto_deps: Auto-generate FK dependencies
+            reuse_existing: Reuse existing database rows
 
         Returns:
             Self for chaining
@@ -54,6 +61,10 @@ class BatchContext:
         # Resolve callable count immediately
         if callable(count):
             count = count()
+
+        # Auto-generate dependencies if requested
+        if auto_deps:
+            self.builder._add_auto_dependencies(table, auto_deps, reuse_existing, count)
 
         self._operations.append(
             SeedPlan(
@@ -126,6 +137,8 @@ class ConditionalContext:
         count: int | Any,  # Allow callable
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
+        auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        reuse_existing: bool = False,
     ) -> BatchContext:
         """
         Add table only if condition is true.
@@ -135,6 +148,8 @@ class ConditionalContext:
             count: Number of rows or callable returning count
             strategy: Generation strategy
             overrides: Column overrides
+            auto_deps: Auto-generate FK dependencies
+            reuse_existing: Reuse existing database rows
 
         Returns:
             Parent BatchContext for continued chaining
@@ -143,6 +158,10 @@ class ConditionalContext:
             # Resolve callable count if needed
             if callable(count):
                 count = count()
+
+            # Auto-generate dependencies if requested
+            if auto_deps:
+                self.batch.builder._add_auto_dependencies(table, auto_deps, reuse_existing, count)
 
             self.batch._operations.append(
                 SeedPlan(
@@ -215,6 +234,8 @@ class SeedBuilder:
         count: int | Any,  # Allow callable for dynamic count
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
+        auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        reuse_existing: bool = False,
     ) -> "SeedBuilder":
         """
         Add a table to the seed plan.
@@ -224,6 +245,11 @@ class SeedBuilder:
             count: Number of rows to generate (int or callable returning int)
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides (callable or value)
+            auto_deps: Auto-generate FK dependencies
+                - False: No auto-deps (default)
+                - True: Generate 1 of each dependency (minimal)
+                - dict: Explicit counts per dependency table
+            reuse_existing: Reuse existing database rows for dependencies (default: False)
 
         Returns:
             Self for chaining
@@ -236,6 +262,14 @@ class SeedBuilder:
             >>> builder.add("users", count=10)
             >>> # Dynamic count via callable
             >>> builder.add("users", count=lambda: random.randint(5, 15))
+            >>> # Auto-generate dependencies (minimal)
+            >>> builder.add("tb_allocation", count=10, auto_deps=True)
+            >>> # Auto-generate with explicit counts
+            >>> builder.add(
+            ...     "tb_allocation",
+            ...     count=100,
+            ...     auto_deps={"tb_organization": 2, "tb_machine": 10}
+            ... )
         """
         # Validate table exists (raises TableNotFoundError if not)
         self.introspector.get_table_info(table)
@@ -243,6 +277,10 @@ class SeedBuilder:
         # Resolve callable count
         if callable(count):
             count = count()
+
+        # Auto-generate dependencies if requested
+        if auto_deps:
+            self._add_auto_dependencies(table, auto_deps, reuse_existing, count)
 
         self._plan.append(
             SeedPlan(
@@ -413,6 +451,141 @@ class SeedBuilder:
             raise ValueError(
                 "set_table_schema() only available with staging backend. "
                 "Use backend='staging' when initializing SeedBuilder."
+            )
+
+    def _build_dependency_tree(self, table: str) -> list[str]:
+        """
+        Build dependency tree for a table (recursive FK traversal).
+
+        Args:
+            table: Table name to build dependency tree for
+
+        Returns:
+            List of table names in topological order (root → leaf), deduplicated
+
+        Example:
+            For: allocation → machine → location → organization
+            Returns: ["tb_organization", "tb_location", "tb_machine"]
+        """
+        visited = set()
+        dependency_list = []
+
+        def visit(current_table: str):
+            if current_table in visited:
+                return
+            visited.add(current_table)
+
+            # Get table info and foreign keys
+            table_info = self.introspector.get_table_info(current_table)
+            fks = table_info.foreign_keys
+
+            # Visit dependencies first (depth-first)
+            for fk in fks:
+                # Skip self-referencing FKs
+                if fk.referenced_table != current_table:
+                    visit(fk.referenced_table)
+
+            # Add current table after dependencies (post-order)
+            if current_table != table:  # Don't include target table
+                dependency_list.append(current_table)
+
+        visit(table)
+        return dependency_list
+
+    def _add_auto_dependencies(
+        self,
+        table: str,
+        auto_deps: bool | dict[str, int | dict[str, Any]],
+        reuse_existing: bool,
+        target_count: int | None = None,
+    ) -> None:
+        """
+        Auto-generate dependencies for a table.
+
+        Args:
+            table: Target table name
+            auto_deps: Auto-deps configuration (True for minimal, dict for explicit)
+            reuse_existing: Whether to reuse existing database rows
+            target_count: Target table count (for warning if auto-dep count exceeds)
+
+        Side Effects:
+            Adds dependencies to self._plan
+        """
+        # Build dependency tree
+        dep_tree = self._build_dependency_tree(table)
+
+        # Get tables already in plan
+        plan_tables = {plan.table for plan in self._plan}
+
+        # Parse auto_deps config
+        if auto_deps is True:
+            # Minimal: 1 of each dependency
+            dep_config = {}
+        elif isinstance(auto_deps, dict):
+            dep_config = auto_deps
+        else:
+            dep_config = {}
+
+        # Add each dependency if not already in plan
+        for dep_table in dep_tree:
+            if dep_table in plan_tables:
+                # Dependency already manually added - check for count conflict
+                if dep_table in dep_config:
+                    # User specified auto_deps count, but table already in plan
+                    existing_plan = next(p for p in self._plan if p.table == dep_table)
+                    requested_count = dep_config[dep_table]
+                    if isinstance(requested_count, dict):
+                        requested_count = requested_count.get("count", 1)
+
+                    if existing_plan.count != requested_count:
+                        logger.warning(
+                            f"Dependency '{dep_table}' already in plan with "
+                            f"count={existing_plan.count}. "
+                            f"Ignoring auto_deps count={requested_count}. "
+                            f"Using existing count={existing_plan.count}."
+                        )
+                continue
+
+            # Determine count and overrides for this dependency
+            if dep_table in dep_config:
+                config = dep_config[dep_table]
+                if isinstance(config, dict):
+                    # Dict with count and overrides
+                    dep_count = config.get("count", 1)
+                    dep_overrides = config.get("overrides", {})
+                elif isinstance(config, int):
+                    # Just a count
+                    dep_count = config
+                    dep_overrides = {}
+                else:
+                    dep_count = 1
+                    dep_overrides = {}
+            else:
+                # Default: count=1, no overrides
+                dep_count = 1
+                dep_overrides = {}
+
+            # Check for unusual counts (warning only, not error)
+            if target_count and dep_count > target_count:
+                logger.warning(
+                    f"Auto-dependency '{dep_table}' count ({dep_count}) exceeds "
+                    f"target table '{table}' count ({target_count}). "
+                    f"This is unusual but allowed. Most parent rows will have "
+                    f"no child rows."
+                )
+
+            # Add dependency to plan
+            self._plan.append(
+                SeedPlan(
+                    table=dep_table,
+                    count=dep_count,
+                    strategy="faker",
+                    overrides=dep_overrides,
+                )
+            )
+
+            logger.debug(
+                f"Auto-added dependency: {dep_table} (count={dep_count}) for {table}"
             )
 
     def _generate_rows(

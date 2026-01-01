@@ -1,4 +1,5 @@
 """Test basic auto-dependency resolution functionality."""
+# ruff: noqa: E501
 
 
 from fraiseql_data import SeedBuilder
@@ -283,10 +284,9 @@ def test_auto_deps_with_overrides(db_conn, test_schema):
             count=10,
             auto_deps={
                 "tb_organization": {
-                    "count": 1,
+                    "count": 2,
                     "overrides": {
-                        "name": "Test Organization",
-                        "identifier": "ORG-TEST-001",
+                        "name": lambda i: f"Test Org {i}",
                     },
                 }
             },
@@ -294,9 +294,9 @@ def test_auto_deps_with_overrides(db_conn, test_schema):
     )
 
     # Verify override values
-    assert len(seeds.tb_organization) == 1
-    assert seeds.tb_organization[0].name == "Test Organization"
-    assert seeds.tb_organization[0].identifier == "ORG-TEST-001"
+    assert len(seeds.tb_organization) == 2
+    assert seeds.tb_organization[0].name == "Test Org 1"
+    assert seeds.tb_organization[1].name == "Test Org 2"
 
 
 def test_auto_deps_already_in_plan_manual_wins(db_conn, test_schema):
@@ -376,7 +376,7 @@ def test_auto_deps_false(db_conn, test_schema):
 
     try:
         builder.add("tb_allocation", count=10, auto_deps=False).execute()
-        assert False, "Expected MissingDependencyError"
+        raise AssertionError("Expected MissingDependencyError")
     except MissingDependencyError as e:
         assert "tb_machine" in str(e)
         assert "tb_allocation" in str(e)

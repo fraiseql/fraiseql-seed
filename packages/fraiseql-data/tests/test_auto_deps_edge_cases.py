@@ -1,14 +1,14 @@
 """Test edge cases for auto-dependency resolution."""
+# ruff: noqa: E501
 
 
 from fraiseql_data import SeedBuilder
-from fraiseql_data.exceptions import CircularDependencyError, TableNotFoundError
 
 
 def test_auto_deps_circular_dependency(db_conn, test_schema):
     """Test that auto-deps detects circular dependencies and raises error."""
     # Create circular dependency: A → B → C → A
-    with db_conn.cursor() as cur:
+    with db_conn.cursor():
         # We can't actually create circular FKs in PostgreSQL,
         # so we'll create a self-referencing table which is similar
         # For now, skip this test - circular deps are caught by existing dependency graph
@@ -111,7 +111,7 @@ def test_auto_deps_no_dependencies(db_conn, test_schema):
     # Verify: just the organizations, no other tables
     assert len(seeds.tb_organization) == 5
     # Seeds should only have tb_organization
-    assert len(seeds._data) == 1
+    assert len(seeds._tables) == 1
 
 
 def test_auto_deps_count_exceeds_target(db_conn, test_schema, caplog):

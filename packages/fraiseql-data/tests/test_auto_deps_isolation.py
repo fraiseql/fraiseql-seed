@@ -1,4 +1,5 @@
 """Test data isolation and reuse behavior for auto-deps."""
+# ruff: noqa: E501
 
 
 from fraiseql_data import SeedBuilder
