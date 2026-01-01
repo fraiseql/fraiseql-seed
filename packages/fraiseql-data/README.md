@@ -2,6 +2,58 @@
 
 Schema-aware seed data generation for PostgreSQL with Trinity pattern support.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Core Features](#core-features)
+  - [1. Automatic Dependency Resolution](#1-automatic-dependency-resolution)
+  - [2. Trinity Pattern Support](#2-trinity-pattern-support)
+  - [3. Realistic Data Generation](#3-realistic-data-generation)
+  - [4. Custom Overrides](#4-custom-overrides)
+- [Phase 2 Features](#phase-2-features-new)
+  - [Self-Referencing Tables](#self-referencing-tables)
+  - [UNIQUE Constraint Handling](#unique-constraint-handling)
+  - [Bulk Insert Optimization](#bulk-insert-optimization)
+- [Phase 3 Features](#phase-3-features)
+  - [Data Export](#data-export)
+- [Phase 4 Features](#phase-4-features-new)
+  - [Data Import](#data-import)
+  - [Staging Backend (In-Memory Testing)](#staging-backend-in-memory-testing)
+  - [CHECK Constraint Auto-Satisfaction](#check-constraint-auto-satisfaction)
+  - [Batch Operations API](#batch-operations-api)
+- [Phase 5 Features](#phase-5-features-new)
+  - [Auto-Dependency Resolution](#auto-dependency-resolution)
+  - [Auto-Deps with Explicit Counts](#auto-deps-with-explicit-counts)
+  - [Auto-Deps with Overrides](#auto-deps-with-overrides)
+  - [Manual Precedence](#manual-precedence)
+  - [Multi-Path Deduplication](#multi-path-deduplication)
+  - [Auto-Deps with Batch Operations](#auto-deps-with-batch-operations)
+  - [Deep Hierarchies](#deep-hierarchies)
+- [Phase 6 Features](#phase-6-features-new)
+  - [Seed Common Baseline](#seed-common-baseline)
+  - [Format 1: Baseline Counts (Simple)](#format-1-baseline-counts-simple)
+  - [Format 2: Explicit Data (Deterministic)](#format-2-explicit-data-deterministic)
+  - [Environment-Specific Baselines](#environment-specific-baselines)
+  - [Auto-Deps with Seed Common](#auto-deps-with-seed-common)
+  - [FK Validation](#fk-validation)
+  - [Self-Documenting Trinity UUIDs](#self-documenting-trinity-uuids)
+  - [Migration from Phase 5](#migration-from-phase-5)
+- [pytest Integration](#pytest-integration)
+- [API Reference](#api-reference)
+- [Examples](#examples)
+  - [Complex Schema with All Features](#complex-schema-with-all-features)
+  - [Testing with Seed Data](#testing-with-seed-data)
+- [Development](#development)
+  - [Running Tests](#running-tests)
+  - [Linting](#linting)
+- [Architecture](#architecture)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+- [Links](#links)
+
 ## Overview
 
 fraiseql-data generates realistic test data for PostgreSQL databases by:
@@ -728,114 +780,14 @@ def test_models(seeds):
 
 ## API Reference
 
-### SeedBuilder
+For complete API documentation including all classes, methods, parameters, and examples, see **[API.md](docs/API.md)**.
 
-Main API for declarative seed generation.
-
-```python
-from fraiseql_data import SeedBuilder
-
-# With seed common (recommended)
-builder = SeedBuilder(
-    conn,
-    schema="public",
-    seed_common="db/seed_common.yaml"
-)
-
-# Without seed common (shows warning)
-builder = SeedBuilder(conn, schema="public")
-
-# Staging backend (no database)
-builder = SeedBuilder(None, schema="test", backend="staging")
-```
-
-**Parameters:**
-- `conn` (Connection | None): PostgreSQL connection (None for staging backend)
-- `schema` (str): Schema name
-- `backend` (str): Backend type - "direct" (database) or "staging" (in-memory)
-- `seed_common` (str | Path | SeedCommon | None): Seed common baseline
-  - Path to YAML/JSON file
-  - Path to directory (auto-detects format and environment)
-  - SeedCommon instance
-  - None (shows warning, may cause UUID collisions)
-- `validate_seed_common` (bool): Validate FK references (default: True)
-
-#### Methods
-
-**`add(table, count, strategy="faker", overrides=None, auto_deps=False)`**
-
-Add table to seed plan.
-
-**Parameters:**
-- `table` (str): Table name
-- `count` (int | callable): Number of rows to generate (or callable returning int)
-- `strategy` (str): Generation strategy (default: "faker")
-- `overrides` (dict): Column overrides (callable or static value)
-- `auto_deps` (bool | dict): Auto-generate FK dependencies
-  - `False`: No auto-deps (default)
-  - `True`: Generate 1 of each dependency (minimal)
-  - `dict`: Explicit counts/overrides per dependency table
-
-```python
-# Basic usage
-builder.add("tb_product", count=100, overrides={
-    "price": lambda: random.uniform(10.0, 500.0)
-})
-
-# With auto-deps
-builder.add("tb_allocation", count=50, auto_deps=True)
-
-# With explicit auto-deps config
-builder.add("tb_allocation", count=50, auto_deps={
-    "tb_organization": 3,
-    "tb_machine": {"count": 10, "overrides": {"name": "Test Machine"}}
-})
-```
-
-**`execute()`**
-
-Execute seed plan and return generated data.
-
-```python
-seeds = builder.execute()  # Returns Seeds object
-```
-
-### Seeds
-
-Container for generated data with attribute access.
-
-```python
-seeds = builder.execute()
-
-# Access tables by name
-products = seeds.tb_product  # List[SeedRow]
-
-# Access columns by attribute
-for product in products:
-    print(product.name)
-    print(product.price)
-    print(product.id)
-```
-
-### Exceptions
-
-All exceptions inherit from `FraiseQLDataError` and provide helpful error messages:
-
-**Schema/Table Errors:**
-- `SchemaNotFoundError` - Schema doesn't exist
-- `TableNotFoundError` - Table doesn't exist in schema
-
-**Generation Errors:**
-- `ColumnGenerationError` - Can't auto-generate column data
-- `UniqueConstraintError` - Can't generate unique value after retries
-
-**Dependency Errors:**
-- `CircularDependencyError` - Circular FK dependencies detected
-- `MissingDependencyError` - Referenced table not in seed plan
-
-**FK Errors:**
-- `ForeignKeyResolutionError` - Can't resolve FK reference
-- `SelfReferenceError` - Non-nullable self-reference (requires override)
+**Quick reference:**
+- `SeedBuilder` - Main API for seed generation
+- `Seeds` - Container for generated data with export/import
+- `@seed_data` - pytest decorator for test fixtures
+- Exceptions - Comprehensive error handling
+- Models - TableInfo, ColumnInfo, SeedCommon
 
 ## Examples
 

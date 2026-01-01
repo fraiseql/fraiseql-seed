@@ -6,6 +6,51 @@ Stop writing manual seed data. Start testing.
 
 ---
 
+## 🍓 Part of the FraiseQL Ecosystem
+
+**fraiseql-seed** provides test data generation with auto-dependency resolution:
+
+### **Server Stack (PostgreSQL + Python/Rust)**
+
+| Tool | Purpose | Status | Performance Gain |
+|------|---------|--------|------------------|
+| **[pg_tviews](https://github.com/fraiseql/pg_tviews)** | Incremental materialized views | Beta | **100-500× faster** |
+| **[jsonb_delta](https://github.com/evoludigit/jsonb_delta)** | JSONB surgical updates | Stable | **2-7× faster** |
+| **[pgGit](https://pggit.dev)** | Database version control | Stable | Git for databases |
+| **[confiture](https://github.com/fraiseql/confiture)** | PostgreSQL migrations | Stable | **300-600× faster** |
+| **[fraiseql](https://fraiseql.dev)** | GraphQL framework | Stable | **7-10× faster** |
+| **[fraiseql-data](https://github.com/fraiseql/fraiseql-seed)** | Seed data generation | **Phase 6** ⭐ | Auto-dependency resolution |
+
+### **Client Libraries (TypeScript/JavaScript)**
+
+| Library | Purpose | Framework Support |
+|---------|---------|-------------------|
+| **[graphql-cascade](https://github.com/graphql-cascade/graphql-cascade)** | Automatic cache invalidation | Apollo, React Query, Relay, URQL |
+
+**How fraiseql-seed fits:**
+- **fraiseql-data**: Generate realistic test data for **fraiseql** GraphQL APIs
+- **fraiseql-uuid**: Trinity pattern UUIDs (pk_*, id, identifier)
+- Works with **confiture**-built schemas
+- **Seed common baseline** eliminates UUID collisions in tests
+
+**Test data workflow:**
+```python
+from fraiseql_data import SeedBuilder
+
+# Build schema (confiture)
+confiture build --env test
+
+# Generate test data with auto-dependencies
+builder = SeedBuilder(conn, "public", seed_common="db/")
+seeds = builder.add("tb_order", count=100, auto_deps=True).execute()
+# Auto-generates: customers, products, payments (recursive FK resolution!)
+
+# Test fraiseql GraphQL API
+response = await graphql_query("{ orders { id customer { name } } }")
+```
+
+---
+
 ## The Problem
 
 You want to test your API:
