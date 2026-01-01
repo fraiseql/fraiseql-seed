@@ -1,5 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
+import os
+
 import psycopg
 import pytest
 from fraiseql_data import SeedBuilder
@@ -11,11 +13,16 @@ def db_conn() -> Connection:
     """
     Provide a test database connection.
 
-    Note: This will be replaced with actual test database setup.
-    For now, returns a connection to a test database that must exist.
+    Uses DATABASE_URL or TEST_DATABASE_URL environment variable if available,
+    otherwise connects to local database.
     """
-    # TODO: Use environment variable or test database
-    conn = psycopg.connect("postgresql://localhost/fraiseql_test", autocommit=False)
+    # Try environment variables first (for CI/CD), then fallback to localhost
+    db_url = os.getenv(
+        "TEST_DATABASE_URL",
+        os.getenv("DATABASE_URL", "postgresql://localhost/fraiseql_test"),
+    )
+
+    conn = psycopg.connect(db_url, autocommit=False)
 
     yield conn
 

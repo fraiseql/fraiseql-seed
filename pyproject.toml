@@ -106,6 +106,16 @@ check_untyped_defs = false
 disallow_any_generics = false
 disallow_subclassing_any = false
 
+[[tool.mypy.overrides]]
+module = "fraiseql_uuid.cli.*"
+# CLI is optional (requires click extras) - skip type checking
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "fraiseql_data.cli.*"
+# CLI is optional (requires click extras) - skip type checking
+ignore_errors = true
+
 [tool.coverage.run]
 source = ["packages/*/src"]
 omit = ["*/tests/*", "*/__pycache__/*"]
