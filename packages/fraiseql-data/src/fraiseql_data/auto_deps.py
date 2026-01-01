@@ -25,16 +25,18 @@ class AutoDependencyResolver:
 
     Args:
         introspector: Database introspector for FK information
+        seed_common: SeedCommon instance for baseline data
 
     Example:
-        >>> resolver = AutoDependencyResolver(introspector)
+        >>> resolver = AutoDependencyResolver(introspector, seed_common)
         >>> dep_tree = resolver.build_dependency_tree("tb_allocation")
         >>> # Returns: ["tb_organization", "tb_machine"]
     """
 
-    def __init__(self, introspector):
-        """Initialize resolver with introspector."""
+    def __init__(self, introspector, seed_common):
+        """Initialize resolver with introspector and seed common."""
         self.introspector = introspector
+        self.seed_common = seed_common
 
     def build_dependency_tree(self, table: str) -> list[str]:
         """
@@ -87,6 +89,75 @@ class AutoDependencyResolver:
         visit(table)
         return dependency_list
 
+    def _query_existing_rows(self, table: str, count: int) -> list[dict[str, Any]]:
+        """
+        Query existing rows from database for reuse.
+
+        Args:
+            table: Table name to query
+            count: Maximum number of rows to fetch
+
+        Returns:
+            List of row dicts (may be less than count if insufficient data)
+
+        Example:
+            >>> rows = resolver._query_existing_rows("tb_organization", 5)
+            >>> # Returns: [{pk_organization: 1, ...}, {pk_organization: 2, ...}]
+        """
+        if not self.conn or not self.schema:
+            return []
+
+        table_info = self.introspector.get_table_info(table)
+
+        # Find primary key column
+        pk_column = None
+        for col in table_info.columns:
+            if col.is_primary_key:
+                pk_column = col.name
+                break
+
+        if not pk_column:
+            logger.warning(
+                f"Cannot reuse rows from '{table}': no primary key found"
+            )
+            return []
+
+        # Build column list for SELECT
+        columns = [col.name for col in table_info.columns if not col.name.startswith("pk_")]
+
+        # Include pk column for ordering
+        if pk_column not in columns:
+            columns.insert(0, pk_column)
+
+        column_list = ", ".join(columns)
+
+        # Query existing rows ordered by PK
+        query = f"""
+            SELECT {column_list}
+            FROM {self.schema}.{table}
+            ORDER BY {pk_column}
+            LIMIT {count}
+        """
+
+        with self.conn.cursor() as cur:
+            cur.execute(query)
+            rows = cur.fetchall()
+
+        # Convert to list of dicts
+        row_dicts = []
+        for row in rows:
+            row_dict = {}
+            for i, col_name in enumerate(columns):
+                row_dict[col_name] = row[i]
+            row_dicts.append(row_dict)
+
+        logger.debug(
+            f"Reused {len(row_dicts)} existing rows from '{table}' "
+            f"(requested {count})"
+        )
+
+        return row_dicts
+
     def resolve_dependencies(
         self,
         table: str,
@@ -108,9 +179,12 @@ class AutoDependencyResolver:
                 - dict: Explicit counts/overrides per table
             current_plan: Existing seed plans (to check for conflicts)
             target_count: Target table count (for warnings if dep > target)
+            reuse_existing: Whether to reuse existing database rows
 
         Returns:
-            List of SeedPlan objects for dependencies to add
+            Tuple of (plans_to_add, reused_data)
+            - plans_to_add: List of SeedPlan objects for dependencies to add
+            - reused_data: Dict mapping table name to list of reused row dicts
 
         Raises:
             None - Logs warnings for conflicts/unusual configs
@@ -205,18 +279,46 @@ class AutoDependencyResolver:
                     f"no child rows."
                 )
 
-            # Create plan for this dependency
-            plan = SeedPlan(
-                table=dep_table,
-                count=dep_count,
-                strategy="faker",
-                overrides=dep_overrides,
+            # Check if seed common provides enough instances
+            seed_common_count = self.seed_common.get_instance_offsets().get(
+                dep_table, 0
             )
-            plans_to_add.append(plan)
 
-            logger.debug(
-                f"Auto-added dependency: {dep_table} (count={dep_count}) "
-                f"for {table}"
-            )
+            if seed_common_count >= dep_count:
+                # Seed common has enough! No generation needed
+                logger.info(
+                    f"Auto-dependency '{dep_table}': Using {dep_count} instances "
+                    f"from seed common (has {seed_common_count})"
+                )
+                # Add plan with count=0 (dependency satisfied by seed common)
+                plan = SeedPlan(
+                    table=dep_table,
+                    count=0,
+                    strategy="faker",
+                    overrides={},
+                )
+                plans_to_add.append(plan)
+            else:
+                # Need to generate more beyond seed common
+                rows_needed = dep_count - seed_common_count
+                if seed_common_count > 0:
+                    logger.info(
+                        f"Auto-dependency '{dep_table}': Seed common has "
+                        f"{seed_common_count}, generating {rows_needed} more "
+                        f"(total needed: {dep_count})"
+                    )
+                else:
+                    logger.debug(
+                        f"Auto-added dependency: {dep_table} (count={rows_needed}) "
+                        f"for {table}"
+                    )
+
+                plan = SeedPlan(
+                    table=dep_table,
+                    count=rows_needed,
+                    strategy="faker",
+                    overrides=dep_overrides,
+                )
+                plans_to_add.append(plan)
 
         return plans_to_add

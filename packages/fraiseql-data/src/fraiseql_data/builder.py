@@ -1,6 +1,7 @@
 """SeedBuilder API for declarative seed generation."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from fraiseql_uuid import Pattern
@@ -192,6 +193,8 @@ class SeedBuilder:
         conn: Connection | None,
         schema: str,
         backend: str = "direct",
+        seed_common: str | Path | Any | None = None,
+        validate_seed_common: bool = True,
     ):
         """
         Initialize SeedBuilder.
@@ -200,13 +203,19 @@ class SeedBuilder:
             conn: PostgreSQL connection (None for staging backend)
             schema: Schema name
             backend: Backend type - "direct" (database) or "staging" (in-memory)
+            seed_common: Seed common baseline (file/directory/instance or None)
+                - Path to YAML/JSON file
+                - Path to directory (auto-detects format and environment)
+                - SeedCommon instance
+                - None (shows warning, not recommended)
+            validate_seed_common: Validate FK references (default: True)
 
         Raises:
             SchemaNotFoundError: If schema doesn't exist (direct backend only)
 
         Example:
-            >>> # Database backend (default)
-            >>> builder = SeedBuilder(conn, schema="test")
+            >>> # With seed common (recommended)
+            >>> builder = SeedBuilder(conn, schema="test", seed_common="db/")
             >>>
             >>> # Staging backend (no database)
             >>> builder = SeedBuilder(None, schema="test", backend="staging")
@@ -223,7 +232,6 @@ class SeedBuilder:
 
             self.backend = StagingBackend()
             self.introspector = MockIntrospector()
-            self._auto_deps_resolver = AutoDependencyResolver(self.introspector)
         else:
             # Direct backend - requires database connection
             if conn is None:
@@ -238,8 +246,51 @@ class SeedBuilder:
             self.backend = DirectBackend(conn, schema)
             self.introspector = SchemaIntrospector(conn, schema)
 
-        # Initialize auto-dependency resolver
-        self._auto_deps_resolver = AutoDependencyResolver(self.introspector)
+        # Load seed common baseline
+        from fraiseql_data.seed_common import SeedCommon, SeedCommonValidationError
+
+        if seed_common is None:
+            logger.warning(
+                "No seed common defined. UUID collisions may occur when "
+                "creating multiple SeedBuilder instances.\n"
+                "Recommendation: Define seed common baseline:\n"
+                "  SeedBuilder(..., seed_common='db/')\n"
+                "This warning will become an error in v2.0."
+            )
+            self._seed_common = SeedCommon(instance_offsets={}, data=None)
+        elif isinstance(seed_common, SeedCommon):
+            self._seed_common = seed_common
+        else:
+            # Load from file/directory
+            path = Path(seed_common)
+
+            if path.is_dir():
+                # Directory: auto-detect format and environment
+                self._seed_common = SeedCommon.from_directory(path)
+            elif path.suffix in (".yaml", ".yml"):
+                self._seed_common = SeedCommon.from_yaml(path)
+            elif path.suffix == ".json":
+                self._seed_common = SeedCommon.from_json(path)
+            else:
+                raise ValueError(f"Unsupported seed common format: {path}")
+
+            # Validate if enabled
+            if validate_seed_common and backend != "staging":
+                errors = self._seed_common.validate(self.introspector)
+                if errors:
+                    error_msg = "Seed common validation failed:\n" + "\n".join(
+                        f"  {i+1}. {err}" for i, err in enumerate(errors)
+                    )
+                    raise SeedCommonValidationError(error_msg)
+
+        logger.debug(
+            f"Seed common loaded: {self._seed_common.get_instance_offsets()}"
+        )
+
+        # Initialize auto-dependency resolver with seed common
+        self._auto_deps_resolver = AutoDependencyResolver(
+            self.introspector, self._seed_common
+        )
 
     def add(
         self,
@@ -341,13 +392,24 @@ class SeedBuilder:
         for plan in sorted_plan:
             table_info = self.introspector.get_table_info(plan.table)
 
+            # Skip generation if count=0 (dependency satisfied by seed common)
+            if plan.count == 0:
+                # Seed common data already exists in database, no generation needed
+                # Add empty list to maintain dependency tracking
+                generated_data[plan.table] = []
+                seeds.add_table(plan.table, [])
+                continue
+
             # Check if table has self-referencing FKs
             has_self_ref = len(table_info.get_self_referencing_fks()) > 0
 
             if has_self_ref:
                 # For self-referencing tables, insert one-by-one and track
+                # Start instance counter after seed common range
+                instance_start = self._seed_common.get_instance_start(plan.table)
                 inserted_rows = []
-                for instance in range(1, plan.count + 1):
+                for i in range(plan.count):
+                    instance = instance_start + i
                     # Create single-row plan with correct instance number
                     single_plan = SeedPlan(
                         table=plan.table,
@@ -368,7 +430,12 @@ class SeedBuilder:
                     inserted_rows.extend(new_rows)
             else:
                 # Regular table: generate all rows at once
-                rows = self._generate_rows(table_info, plan, generated_data)
+                # Start instance counter after seed common range
+                instance_start = self._seed_common.get_instance_start(plan.table)
+
+                rows = self._generate_rows(
+                    table_info, plan, generated_data, instance_start=instance_start
+                )
                 inserted_rows = self.backend.insert_rows(table_info, rows)
 
             # Store for reference by dependent tables
@@ -544,7 +611,9 @@ class SeedBuilder:
             current_table_rows = []
 
         rows = []
-        for i in range(instance_start, instance_start + plan.count):
+        for counter, instance in enumerate(
+            range(instance_start, instance_start + plan.count), start=1
+        ):
             row: dict[str, Any] = {}
 
             # Generate data for each column
@@ -593,7 +662,7 @@ class SeedBuilder:
                         import inspect
                         sig = inspect.signature(override)
                         if len(sig.parameters) > 0:
-                            row[col.name] = override(i)
+                            row[col.name] = override(counter)
                         else:
                             row[col.name] = override()
                     else:
@@ -624,7 +693,8 @@ class SeedBuilder:
                     value = custom_gen.generate(
                         col.name,
                         col.pg_type,
-                        instance=i,
+                        instance=instance,
+                        counter=counter,
                         row_data=row,
                         table_info=table_info,
                     )
@@ -657,7 +727,7 @@ class SeedBuilder:
 
             # Add Trinity columns if table follows pattern
             if table_info.is_trinity:
-                trinity_data = trinity_gen.generate(i, **row)
+                trinity_data = trinity_gen.generate(instance, **row)
                 row.update(trinity_data)
 
             # Validate multi-column UNIQUE constraints

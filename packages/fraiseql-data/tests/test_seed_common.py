@@ -535,7 +535,7 @@ baseline:
             assert instance >= 1001
 
 
-def test_builder_without_seed_common_warning(db_conn, test_schema):
+def test_builder_without_seed_common_warning(db_conn, test_schema, caplog):
     """Warn when seed_common=None."""
     from fraiseql_data import SeedBuilder
     import logging
@@ -555,12 +555,13 @@ def test_builder_without_seed_common_warning(db_conn, test_schema):
         db_conn.commit()
 
     # Capture logs
-    with pytest.warns(None) as warnings:
+    with caplog.at_level(logging.WARNING):
         builder = SeedBuilder(db_conn, schema=test_schema, seed_common=None)
 
-    # Should have logged warning (check via logger, not pytest.warns)
-    # For now, just verify builder was created
+    # Should have logged warning about missing seed common
     assert builder is not None
+    assert "No seed common defined" in caplog.text
+    assert "UUID collisions may occur" in caplog.text
 
 
 def test_trinity_pattern_after_seed_common(db_conn, test_schema):

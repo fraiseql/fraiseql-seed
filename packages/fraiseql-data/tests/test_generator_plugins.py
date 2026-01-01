@@ -16,8 +16,8 @@ def test_register_custom_generator(db_conn: Connection, test_schema: str):
     # Define custom SKU generator
     class SKUGenerator(BaseGenerator):
         def generate(self, column_name, pg_type, **context):
-            instance = context.get("instance", 1)
-            return f"SKU-{instance:06d}"
+            counter = context.get("counter", 1)
+            return f"SKU-{counter:06d}"
 
     # Register the generator
     register_generator("sku", SKUGenerator)
