@@ -338,7 +338,6 @@ def test_auto_deps_deep_hierarchy(db_conn, test_schema):
 
 def test_auto_deps_with_export_import(db_conn, test_schema):
     """Test auto-deps generated data can be exported and re-imported."""
-    import json
     import tempfile
 
     # Create schema

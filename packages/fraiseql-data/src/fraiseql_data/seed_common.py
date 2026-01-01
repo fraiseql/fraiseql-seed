@@ -150,7 +150,7 @@ class SeedCommon:
             f"No seed common found in {directory}. Expected:\n"
             f"  - seed_common.yaml or seed_common.json\n"
             + (f"  - seed_common.{env}.yaml (if ENV={env})\n" if env else "")
-            + f"  - 1_seed_common/ directory (SQL format)"
+            + "  - 1_seed_common/ directory (SQL format)"
         )
 
     @classmethod

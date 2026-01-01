@@ -44,7 +44,6 @@ class BatchContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
-        reuse_existing: bool = False,
     ) -> "BatchContext":
         """
         Add table to batch (chainable).
@@ -55,7 +54,6 @@ class BatchContext:
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
-            reuse_existing: Reuse existing database rows
 
         Returns:
             Self for chaining
@@ -144,7 +142,6 @@ class ConditionalContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
-        reuse_existing: bool = False,
     ) -> BatchContext:
         """
         Add table only if condition is true.
@@ -155,7 +152,6 @@ class ConditionalContext:
             strategy: Generation strategy
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
-            reuse_existing: Reuse existing database rows
 
         Returns:
             Parent BatchContext for continued chaining
@@ -299,7 +295,6 @@ class SeedBuilder:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
-        reuse_existing: bool = False,
     ) -> "SeedBuilder":
         """
         Add a table to the seed plan.
@@ -313,7 +308,6 @@ class SeedBuilder:
                 - False: No auto-deps (default)
                 - True: Generate 1 of each dependency (minimal)
                 - dict: Explicit counts per dependency table
-            reuse_existing: Reuse existing database rows for dependencies (default: False)
 
         Returns:
             Self for chaining

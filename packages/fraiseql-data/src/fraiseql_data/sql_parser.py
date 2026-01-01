@@ -48,7 +48,7 @@ def parse_seed_sql(sql_file: Path) -> dict[str, int]:
 
     # Find all INSERT statements
     for match in re.finditer(insert_pattern, content, re.IGNORECASE):
-        schema = match.group(1)  # Optional schema
+        # match.group(1) is optional schema (we don't need it)
         table = match.group(2)
 
         # Find UUIDs in this INSERT block

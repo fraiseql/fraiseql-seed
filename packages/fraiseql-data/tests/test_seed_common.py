@@ -9,9 +9,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from fraiseql_data.seed_common import SeedCommon, SeedCommonValidationError
-
 
 # ============================================================================
 # Basic Loading Tests
@@ -537,8 +535,9 @@ baseline:
 
 def test_builder_without_seed_common_warning(db_conn, test_schema, caplog):
     """Warn when seed_common=None."""
-    from fraiseql_data import SeedBuilder
     import logging
+
+    from fraiseql_data import SeedBuilder
 
     # Create schema
     with db_conn.cursor() as cur:
