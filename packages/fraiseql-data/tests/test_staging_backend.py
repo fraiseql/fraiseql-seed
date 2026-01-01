@@ -1,6 +1,5 @@
 """Test staging backend for in-memory seed generation without database."""
 
-import pytest
 
 from fraiseql_data import SeedBuilder
 from fraiseql_data.models import ColumnInfo, TableInfo
@@ -71,10 +70,6 @@ def test_staging_backend_generates_pks():
     assert pks == list(range(1, 11)), f"Expected [1-10], got {pks}"
 
 
-@pytest.mark.skip(
-    reason="Handling columns with defaults requires REFACTOR phase improvements. "
-    "Core staging backend functionality tested in other tests."
-)
 def test_staging_to_database_migration(db_conn, test_schema):
     """Test migrating staging data to actual database via export/import."""
     # Step 1: Generate in staging (no database)
@@ -111,21 +106,13 @@ def test_staging_to_database_migration(db_conn, test_schema):
     json_str = staging_seeds.to_json()
 
     # Step 3: Import and insert into actual database
-    from fraiseql_data.models import Seeds, SeedRow
+    from fraiseql_data.models import Seeds
 
     imported_seeds = Seeds.from_json(json_str=json_str)
 
-    # Remove None-valued columns (created_at) that will use database defaults
-    # This is handled automatically in REFACTOR phase
-    cleaned_seeds = Seeds()
-    for row in imported_seeds.tb_manufacturer:
-        cleaned_row = {k: v for k, v in row._data.items() if v is not None}
-        cleaned_seeds._tables.setdefault("tb_manufacturer", []).append(
-            SeedRow(_data=cleaned_row)
-        )
-
+    # DirectBackend now automatically handles columns with defaults
     db_builder = SeedBuilder(db_conn, schema=test_schema, backend="direct")
-    result = db_builder.insert_seeds(cleaned_seeds)
+    db_builder.insert_seeds(imported_seeds)
 
     # Step 4: Verify in database
     with db_conn.cursor() as cur:

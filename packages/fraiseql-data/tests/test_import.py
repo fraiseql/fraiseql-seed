@@ -1,10 +1,7 @@
 """Test data import from JSON/CSV files."""
 
-import json
 import tempfile
 from pathlib import Path
-
-import pytest
 
 from fraiseql_data import SeedBuilder
 from fraiseql_data.models import Seeds
@@ -23,8 +20,9 @@ def test_import_from_json(db_conn, test_schema):
     # Verify data imported correctly
     assert len(imported.tb_manufacturer) == 10
     assert imported.tb_manufacturer[0].name == original.tb_manufacturer[0].name
-    # Note: UUIDs imported as strings (type conversion in REFACTOR phase)
-    assert str(imported.tb_manufacturer[0].id) == str(original.tb_manufacturer[0].id)
+    # Verify UUIDs are properly converted back from strings
+    assert imported.tb_manufacturer[0].id == original.tb_manufacturer[0].id
+    assert isinstance(imported.tb_manufacturer[0].id, type(original.tb_manufacturer[0].id))
 
 
 def test_import_from_csv(db_conn, test_schema):

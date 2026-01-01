@@ -75,11 +75,15 @@ class DirectBackend:
         if not rows:
             return []
 
-        # Get columns to insert
+        # Determine columns to insert based on what's in the data
+        # Skip pk_* IDENTITY columns and columns not present in data
+        first_row = rows[0]
         insert_columns = [
             col.name
             for col in table_info.columns
             if not (col.is_primary_key and col.name.startswith("pk_"))
+            and col.name in first_row
+            and first_row[col.name] is not None  # Skip None values (use DB defaults)
         ]
 
         inserted_rows = []
@@ -135,11 +139,18 @@ class DirectBackend:
         Returns:
             List of complete rows including generated columns
         """
-        # Get columns to insert (exclude pk_* IDENTITY columns)
+        if not rows:
+            return []
+
+        # Determine columns to insert based on what's in the data
+        # Skip pk_* IDENTITY columns and columns not present in data
+        first_row = rows[0]
         insert_columns = [
             col.name
             for col in table_info.columns
             if not (col.is_primary_key and col.name.startswith("pk_"))
+            and col.name in first_row
+            and first_row[col.name] is not None  # Skip None values (use DB defaults)
         ]
 
         # Build INSERT ... RETURNING statement

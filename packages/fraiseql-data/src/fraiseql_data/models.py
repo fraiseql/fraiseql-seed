@@ -251,14 +251,18 @@ class Seeds:
         cls, file_path: Any | None = None, json_str: str | None = None
     ) -> "Seeds":
         """
-        Import seed data from JSON format.
+        Import seed data from JSON format with automatic type conversion.
+
+        Automatically converts:
+        - String UUIDs to uuid.UUID objects
+        - ISO datetime strings to datetime objects
 
         Args:
             file_path: Optional file path to read JSON from (str or Path)
             json_str: Optional JSON string to parse
 
         Returns:
-            Seeds object with imported data
+            Seeds object with imported data (types converted)
 
         Raises:
             ValueError: If neither file_path nor json_str provided
@@ -270,7 +274,9 @@ class Seeds:
             >>> seeds = Seeds.from_json(json_str=json_string)
         """
         import json
+        from datetime import datetime
         from pathlib import Path
+        from uuid import UUID
 
         if file_path is not None:
             path = Path(file_path)
@@ -280,9 +286,40 @@ class Seeds:
         else:
             raise ValueError("Must provide either file_path or json_str")
 
+        def convert_types(row_dict: dict[str, Any]) -> dict[str, Any]:
+            """Convert string values to appropriate Python types."""
+            converted = {}
+            for key, value in row_dict.items():
+                if value is None:
+                    converted[key] = value
+                elif isinstance(value, str):
+                    # Try UUID conversion
+                    if len(value) == 36 and value.count("-") == 4:
+                        try:
+                            converted[key] = UUID(value)
+                            continue
+                        except ValueError:
+                            pass
+
+                    # Try datetime conversion (ISO format)
+                    if "T" in value or len(value) > 18:
+                        try:
+                            converted[key] = datetime.fromisoformat(value)
+                            continue
+                        except (ValueError, AttributeError):
+                            pass
+
+                    # Keep as string
+                    converted[key] = value
+                else:
+                    # Keep original type (int, float, etc.)
+                    converted[key] = value
+
+            return converted
+
         seeds = cls()
         for table_name, rows_data in data.items():
-            rows = [SeedRow(_data=row_dict) for row_dict in rows_data]
+            rows = [SeedRow(_data=convert_types(row_dict)) for row_dict in rows_data]
             seeds._tables[table_name] = rows
 
         return seeds

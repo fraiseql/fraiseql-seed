@@ -1,6 +1,5 @@
 """Test automatic satisfaction of CHECK constraints."""
 
-import pytest
 
 from fraiseql_data import SeedBuilder
 
@@ -98,7 +97,7 @@ def test_complex_check_emits_warning(db_conn, test_schema, caplog):
 
     # This should emit a warning about complex CHECK constraint
     try:
-        seeds = builder.add("tb_order", count=10).execute()
+        builder.add("tb_order", count=10).execute()
         # May fail if constraint violation occurs, or succeed with warning
     except Exception:
         pass  # Expected if constraint violated

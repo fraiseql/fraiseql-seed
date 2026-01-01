@@ -2,8 +2,6 @@
 
 import random
 
-import pytest
-
 from fraiseql_data import SeedBuilder
 
 
