@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Unit Tests
+    name: Unit Tests (fraiseql-uuid)
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -50,7 +50,7 @@ jobs:
 
     - name: Run fraiseql-uuid tests
       run: |
-        echo "=== Running fraiseql-uuid Unit Tests ==="
+        echo "=== Running fraiseql-uuid Tests ==="
         cd packages/fraiseql-uuid
         uv run pytest \
           --cov=fraiseql_uuid \
@@ -64,22 +64,6 @@ jobs:
           }
         echo "✅ fraiseql-uuid tests completed successfully"
 
-    - name: Run fraiseql-data tests
-      run: |
-        echo "=== Running fraiseql-data Unit Tests ==="
-        cd packages/fraiseql-data
-        uv run pytest \
-          --cov=fraiseql_data \
-          --cov-report=xml \
-          --cov-report=term-missing \
-          -v \
-          --tb=short \
-          || {
-            echo "❌ fraiseql-data tests failed"
-            exit 1
-          }
-        echo "✅ fraiseql-data tests completed successfully"
-
     - name: Upload coverage for fraiseql-uuid
       uses: codecov/codecov-action@v5
       with:
@@ -89,19 +73,9 @@ jobs:
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Upload coverage for fraiseql-data
-      uses: codecov/codecov-action@v5
-      with:
-        files: ./packages/fraiseql-data/coverage.xml
-        flags: fraiseql-data,python-${{ matrix.python-version }}
-        name: fraiseql-data-py${{ matrix.python-version }}
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
   postgres-tests:
-    name: PostgreSQL Integration Tests
+    name: PostgreSQL Tests (fraiseql-data)
     runs-on: ubuntu-latest
-    needs: [unit-tests]
 
     services:
       postgres:
