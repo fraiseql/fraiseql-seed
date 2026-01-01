@@ -23,7 +23,7 @@ class CLILogger:
             debug: Enable debug mode
         """
         self.name = name
-        self.debug = debug
+        self.debug_mode = debug
         self._logger = self._setup_logger()
 
     def _setup_logger(self) -> logging.Logger:
@@ -35,7 +35,7 @@ class CLILogger:
         logger = logging.getLogger(self.name)
 
         # Set level based on debug mode
-        logger.setLevel(logging.DEBUG if self.debug else logging.INFO)
+        logger.setLevel(logging.DEBUG if self.debug_mode else logging.INFO)
 
         # Remove existing handlers
         logger.handlers.clear()
@@ -44,17 +44,17 @@ class CLILogger:
         console_handler = RichHandler(
             console=console,
             rich_tracebacks=True,
-            show_time=self.debug,
-            show_path=self.debug,
+            show_time=self.debug_mode,
+            show_path=self.debug_mode,
         )
-        console_handler.setLevel(logging.DEBUG if self.debug else logging.INFO)
+        console_handler.setLevel(logging.DEBUG if self.debug_mode else logging.INFO)
         console_handler.setFormatter(
             logging.Formatter("%(message)s", datefmt="[%X]")
         )
         logger.addHandler(console_handler)
 
         # Add file handler if debug mode
-        if self.debug:
+        if self.debug_mode:
             log_dir = Path.home() / ".fraiseql-data" / "logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / "fraiseql-data.log"
@@ -160,7 +160,7 @@ class CLILogger:
         context = context or {}
         self.error(f"Error: {error}", **context)
 
-        if self.debug:
+        if self.debug_mode:
             # Include full traceback in debug mode
             import traceback
 
@@ -182,7 +182,7 @@ def get_logger(debug: bool = False) -> CLILogger:
         CLILogger instance
     """
     global _logger
-    if _logger is None or _logger.debug != debug:
+    if _logger is None or _logger.debug_mode != debug:
         _logger = CLILogger(debug=debug)
     return _logger
 

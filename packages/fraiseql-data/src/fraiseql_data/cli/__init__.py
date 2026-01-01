@@ -11,6 +11,7 @@ from .errors import (
 )
 from .formatters import format_output, get_available_formats, get_formatter
 from .handlers import GenerateHandler, InspectHandler, SeedHandler
+from .interactive import InteractiveSession
 from .logging import get_logger, setup_logging
 from .main import cli
 from .utils import display_error, get_database_url, mask_database_url, sanitize_error_message
@@ -36,6 +37,8 @@ __all__ = [
     "GenerateHandler",
     "InspectHandler",
     "SeedHandler",
+    # Interactive
+    "InteractiveSession",
     # Logging
     "get_logger",
     "setup_logging",

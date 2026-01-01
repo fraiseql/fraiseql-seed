@@ -12,6 +12,7 @@ from .config import load_config
 from .errors import CLIError, DatabaseConnectionError
 from .formatters import format_output, get_available_formats
 from .handlers import GenerateHandler, InspectHandler, SeedHandler
+from .interactive import InteractiveSession
 from .logging import get_logger, setup_logging
 from .utils import display_error, get_database_url, mask_database_url, sanitize_error_message
 
@@ -37,7 +38,7 @@ def cli(ctx: click.Context, debug: bool) -> None:
 
 
 @cli.command()
-@click.argument("tables", nargs=-1, required=True)
+@click.argument("tables", nargs=-1, required=False)
 @click.option("--count", type=int, default=None, help="Number of rows per table")
 @click.option("--auto-deps", is_flag=True, help="Auto-generate dependencies")
 @click.option("--quiet", "-q", is_flag=True, help="Quiet mode")
@@ -49,6 +50,7 @@ def cli(ctx: click.Context, debug: bool) -> None:
     default=None,
     help="Output format",
 )
+@click.option("--interactive", "-i", is_flag=True, help="Interactive mode")
 @click.pass_context
 def generate(
     ctx: click.Context,
@@ -57,10 +59,23 @@ def generate(
     auto_deps: bool,
     quiet: bool,
     output_format: str | None,
+    interactive: bool,
 ) -> None:
-    """Generate test data without database connection."""
+    """Generate test data without database connection.
+
+    Use --interactive for a guided wizard.
+    """
     config = ctx.obj["config"]
     logger = get_logger(debug=ctx.obj["debug"])
+
+    # Interactive mode
+    if interactive or not tables:
+        session = InteractiveSession()
+        options = session.run_generate()
+        tables = options["tables"]
+        count = options["count"]
+        auto_deps = options["auto_deps"]
+        output_format = options["format"]
 
     # Apply config defaults
     if count is None:
@@ -92,7 +107,7 @@ def generate(
 
 
 @cli.command()
-@click.argument("tables", nargs=-1, required=True)
+@click.argument("tables", nargs=-1, required=False)
 @click.option(
     "--database", default=None, help="Database connection string (or set DATABASE_URL env var)"
 )
@@ -101,6 +116,7 @@ def generate(
 @click.option("--dry-run", is_flag=True, help="Show what would be done without executing")
 @click.option("--quiet", "-q", is_flag=True, help="Quiet mode")
 @click.option("--schema", default=None, help="Database schema")
+@click.option("--interactive", "-i", is_flag=True, help="Interactive mode")
 @click.pass_context
 def seed(
     ctx: click.Context,
@@ -111,6 +127,7 @@ def seed(
     dry_run: bool,
     quiet: bool,
     schema: str | None,
+    interactive: bool,
 ) -> None:
     """Seed database with generated data.
 
@@ -118,9 +135,23 @@ def seed(
     - --database option
     - DATABASE_URL environment variable
     - Configuration file
+
+    Use --interactive for a guided wizard.
     """
     config = ctx.obj["config"]
     logger = get_logger(debug=ctx.obj["debug"])
+
+    # Interactive mode
+    if interactive or not tables:
+        session = InteractiveSession()
+        options = session.run_seed()
+        tables = options["tables"]
+        if options["database"]:
+            database = options["database"]
+        schema = options["schema"]
+        count = options["count"]
+        auto_deps = options["auto_deps"]
+        dry_run = options["dry_run"]
 
     # Apply config defaults
     if database is None:
