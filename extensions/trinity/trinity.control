@@ -1,0 +1,8 @@
+# Trinity PostgreSQL Extension
+# Version 1.0
+# UUID to INTEGER Primary Key Transformer for Multi-tenant Data Warehouses
+
+default_version = '1.0'
+module_pathname = '$libdir/trinity'
+relocatable = false
+requires = ''
