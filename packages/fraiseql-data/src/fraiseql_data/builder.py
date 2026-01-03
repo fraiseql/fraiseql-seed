@@ -191,6 +191,8 @@ class SeedBuilder:
         backend: str = "direct",
         seed_common: str | Path | Any | None = None,
         validate_seed_common: bool = True,
+        trinity_enabled: bool = False,
+        trinity_tenant_id: Any = None,
     ):
         """
         Initialize SeedBuilder.
@@ -205,6 +207,8 @@ class SeedBuilder:
                 - SeedCommon instance
                 - None (shows warning, not recommended)
             validate_seed_common: Validate FK references (default: True)
+            trinity_enabled: Enable Trinity extension for deterministic PK allocation (default: False)
+            trinity_tenant_id: Tenant ID for multi-tenant Trinity allocation (optional)
 
         Raises:
             SchemaNotFoundError: If schema doesn't exist (direct backend only)
@@ -213,6 +217,9 @@ class SeedBuilder:
             >>> # With seed common (recommended)
             >>> builder = SeedBuilder(conn, schema="test", seed_common="db/")
             >>>
+            >>> # With Trinity extension enabled
+            >>> builder = SeedBuilder(conn, schema="test", trinity_enabled=True, trinity_tenant_id=1)
+            >>>
             >>> # Staging backend (no database)
             >>> builder = SeedBuilder(None, schema="test", backend="staging")
         """
@@ -220,6 +227,8 @@ class SeedBuilder:
         self.schema = schema
         self.pattern = Pattern()
         self._plan: list[SeedPlan] = []
+        self.trinity_enabled = trinity_enabled
+        self.trinity_tenant_id = trinity_tenant_id
 
         if backend == "staging":
             # Staging backend - no database required
@@ -227,6 +236,9 @@ class SeedBuilder:
             from fraiseql_data.introspection import MockIntrospector
 
             self.backend = StagingBackend()
+            # Enable Trinity simulation in staging backend if requested
+            if trinity_enabled:
+                self.backend.enable_trinity_simulation(tenant_id=trinity_tenant_id)
             self.introspector = MockIntrospector()
         else:
             # Direct backend - requires database connection
@@ -555,7 +567,18 @@ class SeedBuilder:
         import random
 
         faker_gen = FakerGenerator()
-        trinity_gen = TrinityGenerator(self.pattern, table_info.name)
+
+        # Build Trinity context if enabled
+        trinity_context = None
+        if self.trinity_enabled and self.conn is not None:
+            trinity_context = {
+                "conn": self.conn,
+                "tenant_id": self.trinity_tenant_id,
+            }
+
+        trinity_gen = TrinityGenerator(
+            self.pattern, table_info.name, trinity_context=trinity_context
+        )
 
         # Parse CHECK constraints and build rules
         check_rules: dict[str, Any] = {}

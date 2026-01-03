@@ -66,7 +66,7 @@ class DirectBackend:
 
         Args:
             table_info: Table metadata
-            rows: List of row data
+            rows: List of row data (may include pre-allocated pk_* columns)
             batch_size: Number of rows per INSERT statement
 
         Returns:
@@ -76,15 +76,20 @@ class DirectBackend:
             return []
 
         # Determine columns to insert based on what's in the data
-        # Skip pk_* IDENTITY columns and columns not present in data
+        # Include pk_* IDENTITY columns if provided (from Trinity allocation)
+        # Otherwise skip them (database generates)
         first_row = rows[0]
         insert_columns = [
             col.name
             for col in table_info.columns
-            if not (col.is_primary_key and col.name.startswith("pk_"))
-            and col.name in first_row
+            if col.name in first_row
             and first_row[col.name] is not None  # Skip None values (use DB defaults)
         ]
+
+        # Check if any pk_* columns are being provided (pre-allocated)
+        has_preallocated_pk = any(
+            col.startswith("pk_") for col in insert_columns
+        )
 
         inserted_rows = []
 
@@ -98,8 +103,14 @@ class DirectBackend:
             placeholders = ", ".join([single_placeholder] * len(batch))
             all_columns = ", ".join([col.name for col in table_info.columns])
 
+            # Use OVERRIDING SYSTEM VALUE if inserting pre-allocated pk_* columns
+            # Otherwise just normal INSERT
+            override_clause = (
+                " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
+            )
+
             sql = f"""
-                INSERT INTO {self.schema}.{table_info.name} ({columns_list})
+                INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}
                 VALUES {placeholders}
                 RETURNING {all_columns}
             """
@@ -133,7 +144,7 @@ class DirectBackend:
 
         Args:
             table_info: Table metadata
-            rows: List of row data
+            rows: List of row data (may include pre-allocated pk_* columns)
 
         Returns:
             List of complete rows including generated columns
@@ -142,15 +153,20 @@ class DirectBackend:
             return []
 
         # Determine columns to insert based on what's in the data
-        # Skip pk_* IDENTITY columns and columns not present in data
+        # Include pk_* IDENTITY columns if provided (from Trinity allocation)
+        # Otherwise skip them (database generates)
         first_row = rows[0]
         insert_columns = [
             col.name
             for col in table_info.columns
-            if not (col.is_primary_key and col.name.startswith("pk_"))
-            and col.name in first_row
+            if col.name in first_row
             and first_row[col.name] is not None  # Skip None values (use DB defaults)
         ]
+
+        # Check if any pk_* columns are being provided (pre-allocated)
+        has_preallocated_pk = any(
+            col.startswith("pk_") for col in insert_columns
+        )
 
         # Build INSERT ... RETURNING statement
         columns_list = ", ".join(insert_columns)
@@ -159,8 +175,13 @@ class DirectBackend:
         # Return all columns including generated ones
         all_columns = ", ".join([col.name for col in table_info.columns])
 
+        # Use OVERRIDING SYSTEM VALUE if inserting pre-allocated pk_* columns
+        override_clause = (
+            " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
+        )
+
         sql = f"""
-            INSERT INTO {self.schema}.{table_info.name} ({columns_list})
+            INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}
             VALUES ({placeholders})
             RETURNING {all_columns}
         """
