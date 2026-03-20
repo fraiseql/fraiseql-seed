@@ -14,8 +14,10 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+
+MIN_ARGS = 2
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION_JSON = ROOT / "version.json"
@@ -53,6 +55,7 @@ def git_short_sha() -> str:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        check=False,
     )
     return result.stdout.strip() or "unknown"
 
@@ -63,6 +66,7 @@ def git_branch() -> str:
         capture_output=True,
         text=True,
         cwd=ROOT,
+        check=False,
     )
     return result.stdout.strip() or "unknown"
 
@@ -72,7 +76,7 @@ def write_version_json(version: str) -> None:
         "version": version,
         "commit": git_short_sha(),
         "branch": git_branch(),
-        "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     VERSION_JSON.write_text(json.dumps(data, indent=2) + "\n")
 
@@ -91,7 +95,7 @@ def write_native_versions(version: str) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
+    if len(sys.argv) < MIN_ARGS:
         print(__doc__)
         sys.exit(1)
 
