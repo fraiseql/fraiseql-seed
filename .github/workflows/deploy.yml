@@ -111,29 +111,25 @@ jobs:
 
       - name: Build fraiseql-uuid
         run: |
-          cd packages/fraiseql-uuid
-          uv build
-          echo "=== Built packages ==="
-          ls -la dist/
+          uv build --package fraiseql-uuid --out-dir dist-uuid/
+          ls -la dist-uuid/
 
       - name: Build fraiseql-data
         run: |
-          cd packages/fraiseql-data
-          uv build
-          echo "=== Built packages ==="
-          ls -la dist/
+          uv build --package fraiseql-data --out-dir dist-data/
+          ls -la dist-data/
 
       - name: Upload fraiseql-uuid dist
         uses: actions/upload-artifact@v4
         with:
           name: dist-fraiseql-uuid
-          path: packages/fraiseql-uuid/dist/
+          path: dist-uuid/
 
       - name: Upload fraiseql-data dist
         uses: actions/upload-artifact@v4
         with:
           name: dist-fraiseql-data
-          path: packages/fraiseql-data/dist/
+          path: dist-data/
 
   # ------------------------------------------------------------------
   # 3. Publish (environment-dependent)

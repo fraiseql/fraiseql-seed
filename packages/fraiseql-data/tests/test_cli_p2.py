@@ -109,7 +109,12 @@ default_schema: test_schema
 """
             )
 
-            with patch("fraiseql_data.cli.config.Path.cwd", return_value=Path(tmpdir)):
+            # Clear DATABASE_URL so env doesn't override the YAML fixture
+            env = {k: v for k, v in os.environ.items() if k != "DATABASE_URL"}
+            with (
+                patch("fraiseql_data.cli.config.Path.cwd", return_value=Path(tmpdir)),
+                patch.dict(os.environ, env, clear=True),
+            ):
                 config = load_config()
                 assert config.get_database_url() == "postgresql://localhost/yaml_test"
                 assert config.get_default_count() == 75
