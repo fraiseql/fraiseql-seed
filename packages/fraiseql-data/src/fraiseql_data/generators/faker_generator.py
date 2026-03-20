@@ -1,12 +1,11 @@
-"""Faker-based data generator."""
+"""Faker-based data generator with fast paths for simple types."""
 
 import logging
 import os
 import random
 import re
 import uuid as uuid_mod
-from datetime import timedelta
-from ipaddress import IPv4Network
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, ClassVar
 
 from faker import Faker
@@ -14,94 +13,207 @@ from faker import Faker
 fake = Faker()
 logger = logging.getLogger("fraiseql_data.generators")
 
+# ---------------------------------------------------------------------------
+# Fast generators — bypass Faker overhead for simple types
+# ---------------------------------------------------------------------------
 
-def _generate_macaddr8() -> str:
-    """Generate a valid EUI-64 MAC address."""
-    octets = [random.randint(0, 255) for _ in range(8)]
-    return ":".join(f"{o:02x}" for o in octets)
+_EPOCH = datetime(2024, 1, 1, tzinfo=UTC)
+_YEAR_SECONDS = 365 * 86400
+
+
+def _fast_int(lo: int = 1, hi: int = 1000) -> int:
+    return random.randint(lo, hi)
+
+
+def _fast_bigint() -> int:
+    return random.randint(1, 100_000)
+
+
+def _fast_smallint() -> int:
+    return random.randint(1, 100)
+
+
+def _fast_float() -> float:
+    return round(random.uniform(0, 10_000), 4)
+
+
+def _fast_bool() -> bool:
+    return bool(random.getrandbits(1))
+
+
+def _fast_uuid() -> str:
+    return str(uuid_mod.uuid4())
+
+
+def _fast_bytea() -> bytes:
+    return os.urandom(16)
+
+
+def _fast_timestamptz() -> datetime:
+    offset = random.randint(0, _YEAR_SECONDS)
+    return _EPOCH + timedelta(seconds=offset)
+
+
+def _fast_timestamp() -> datetime:
+    offset = random.randint(0, _YEAR_SECONDS)
+    return (_EPOCH + timedelta(seconds=offset)).replace(tzinfo=None)
+
+
+def _fast_date() -> date:
+    return _fast_timestamp().date()
+
+
+def _fast_time() -> time:
+    return time(random.randint(0, 23), random.randint(0, 59), random.randint(0, 59))
+
+
+def _fast_interval() -> timedelta:
+    return timedelta(
+        days=random.randint(0, 30),
+        hours=random.randint(0, 23),
+        minutes=random.randint(0, 59),
+    )
+
+
+def _fast_inet() -> str:
+    ri = random.randint
+    return f"{ri(1, 223)}.{ri(0, 255)}.{ri(0, 255)}.{ri(1, 254)}"
+
+
+def _fast_cidr() -> str:
+    return f"{random.randint(1, 223)}.{random.randint(0, 255)}.{random.randint(0, 255)}.0/24"
+
+
+def _fast_macaddr() -> str:
+    return ":".join(f"{random.randint(0, 255):02x}" for _ in range(6))
+
+
+def _fast_macaddr8() -> str:
+    return ":".join(f"{random.randint(0, 255):02x}" for _ in range(8))
+
+
+def _fast_jsonb() -> dict[str, str]:
+    return {"key": f"k{random.randint(0, 9999)}", "value": f"v{random.randint(0, 9999)}"}
+
+
+# ---------------------------------------------------------------------------
+# Pre-generated pools for Faker-dependent types
+# ---------------------------------------------------------------------------
+
+_POOL_SIZE = 500
+
+
+class _FakerPool:
+    """Pre-generate batches of Faker values and serve from pool."""
+
+    def __init__(self, faker_fn: Any, size: int = _POOL_SIZE):
+        self._faker_fn = faker_fn
+        self._size = size
+        self._pool: list[Any] = []
+        self._idx = 0
+
+    def __call__(self) -> Any:
+        if self._idx >= len(self._pool):
+            self._pool = [self._faker_fn() for _ in range(self._size)]
+            self._idx = 0
+        val = self._pool[self._idx]
+        self._idx += 1
+        return val
+
+
+# Pooled Faker generators (amortize Faker's per-call overhead)
+_pool_email = _FakerPool(fake.email)
+_pool_first_name = _FakerPool(fake.first_name)
+_pool_last_name = _FakerPool(fake.last_name)
+_pool_name = _FakerPool(fake.name)
+_pool_company = _FakerPool(fake.company)
+_pool_phone = _FakerPool(fake.phone_number)
+_pool_address = _FakerPool(fake.address)
+_pool_street = _FakerPool(fake.street_address)
+_pool_city = _FakerPool(fake.city)
+_pool_state = _FakerPool(fake.state)
+_pool_country = _FakerPool(fake.country)
+_pool_zipcode = _FakerPool(fake.zipcode)
+_pool_url = _FakerPool(fake.url)
+_pool_text_50 = _FakerPool(lambda: fake.text(max_nb_chars=50))
+_pool_text_200 = _FakerPool(lambda: fake.text(max_nb_chars=200))
+_pool_text_300 = _FakerPool(lambda: fake.text(max_nb_chars=300))
+_pool_word = _FakerPool(fake.word)
 
 
 class FakerGenerator:
     """
-    Generate realistic data using Faker library.
+    Generate realistic data using Faker library with fast paths.
 
     Uses intelligent column name detection and type-based fallbacks to auto-generate
     realistic test data without configuration. Maps common column names like 'email',
     'name', 'phone' to appropriate Faker methods.
 
+    Performance: simple types (int, bool, uuid, float, bytes) bypass Faker entirely.
+    Faker-dependent types (email, name, text) use pre-generated pools to amortize
+    Faker's per-call overhead.
+
     Strategy:
-        1. Try column name mapping (e.g., 'email' → fake.email())
-        2. Fall back to PostgreSQL type (e.g., 'text' → fake.text())
+        1. Try column name mapping (e.g., 'email' → pooled fake.email())
+        2. Fall back to PostgreSQL type (e.g., 'integer' → random.randint())
         3. Default to generic text with warning if no match
     """
 
-    # Column name → Faker method mapping
+    # Column name → generator mapping (pooled Faker)
     COLUMN_MAPPINGS: ClassVar[dict[str, Any]] = {
-        "email": lambda: fake.email(),
-        "first_name": lambda: fake.first_name(),
-        "last_name": lambda: fake.last_name(),
-        "name": lambda: fake.name(),
-        "company": lambda: fake.company(),
-        "phone": lambda: fake.phone_number(),
-        "phone_number": lambda: fake.phone_number(),
-        "address": lambda: fake.address(),
-        "street": lambda: fake.street_address(),
-        "city": lambda: fake.city(),
-        "state": lambda: fake.state(),
-        "country": lambda: fake.country(),
-        "zip": lambda: fake.zipcode(),
-        "zipcode": lambda: fake.zipcode(),
-        "url": lambda: fake.url(),
-        "description": lambda: fake.text(max_nb_chars=200),
-        "bio": lambda: fake.text(max_nb_chars=300),
+        "email": _pool_email,
+        "first_name": _pool_first_name,
+        "last_name": _pool_last_name,
+        "name": _pool_name,
+        "company": _pool_company,
+        "phone": _pool_phone,
+        "phone_number": _pool_phone,
+        "address": _pool_address,
+        "street": _pool_street,
+        "city": _pool_city,
+        "state": _pool_state,
+        "country": _pool_country,
+        "zip": _pool_zipcode,
+        "zipcode": _pool_zipcode,
+        "url": _pool_url,
+        "description": _pool_text_200,
+        "bio": _pool_text_300,
     }
 
-    # Type-based fallbacks
+    # Type-based fallbacks (fast paths where possible)
     TYPE_FALLBACKS: ClassVar[dict[str, Any]] = {
-        # Text types
-        "text": lambda: fake.text(max_nb_chars=50),
-        "character varying": lambda: fake.text(max_nb_chars=50),
-        "varchar": lambda: fake.text(max_nb_chars=50),
-        # Numeric types
-        "integer": lambda: fake.random_int(min=1, max=1000),
-        "bigint": lambda: fake.random_int(min=1, max=100000),
-        "smallint": lambda: fake.random_int(min=1, max=100),
-        "numeric": lambda: fake.pyfloat(min_value=0, max_value=10000),
-        "real": lambda: fake.pyfloat(min_value=0, max_value=10000),
-        "double precision": lambda: fake.pyfloat(min_value=0, max_value=10000),
-        # Boolean
-        "boolean": lambda: fake.boolean(),
-        "bool": lambda: fake.boolean(),
-        # Timestamp/date
-        "timestamp without time zone": lambda: fake.date_time_this_year(),
-        "timestamp with time zone": lambda: fake.date_time_this_year(),
-        "timestamptz": lambda: fake.date_time_this_year(),
-        "date": lambda: fake.date_this_year(),
-        # Time
-        "time without time zone": lambda: fake.time_object(),
-        "time with time zone": lambda: fake.time_object(),
-        "time": lambda: fake.time_object(),
-        "timetz": lambda: fake.time_object(),
-        # Interval
-        "interval": lambda: timedelta(
-            days=random.randint(0, 30),
-            hours=random.randint(0, 23),
-            minutes=random.randint(0, 59),
-        ),
-        # UUID
-        "uuid": lambda: str(uuid_mod.uuid4()),
-        # JSON
-        "jsonb": lambda: {"key": fake.word(), "value": fake.sentence()},
-        "json": lambda: {"key": fake.word(), "value": fake.sentence()},
-        # Network types
-        "inet": lambda: fake.ipv4(),
-        "cidr": lambda: str(IPv4Network(f"{fake.ipv4()}/24", strict=False)),
-        "macaddr": lambda: fake.mac_address(),
-        "macaddr8": _generate_macaddr8,
-        # Binary
-        "bytea": lambda: os.urandom(16),
-        # Array types
-        "ARRAY": lambda: [fake.word() for _ in range(3)],
+        # Text types (pooled Faker — need realistic text)
+        "text": _pool_text_50,
+        "character varying": _pool_text_50,
+        "varchar": _pool_text_50,
+        # Numeric types (fast — no Faker needed)
+        "integer": _fast_int,
+        "bigint": _fast_bigint,
+        "smallint": _fast_smallint,
+        "numeric": _fast_float,
+        "real": _fast_float,
+        "double precision": _fast_float,
+        "boolean": _fast_bool,
+        "bool": _fast_bool,
+        "timestamp without time zone": _fast_timestamp,
+        "timestamp with time zone": _fast_timestamptz,
+        "timestamptz": _fast_timestamptz,
+        "date": _fast_date,
+        "time without time zone": _fast_time,
+        "time with time zone": _fast_time,
+        "time": _fast_time,
+        "timetz": _fast_time,
+        "interval": _fast_interval,
+        "uuid": _fast_uuid,
+        "jsonb": _fast_jsonb,
+        "json": _fast_jsonb,
+        "inet": _fast_inet,
+        "cidr": _fast_cidr,
+        "macaddr": _fast_macaddr,
+        "macaddr8": _fast_macaddr8,
+        "bytea": _fast_bytea,
+        # Array types (generic fallback)
+        "ARRAY": lambda: [_pool_word() for _ in range(3)],
     }
 
     # Regex for numeric(precision, scale)
@@ -112,14 +224,14 @@ class FakerGenerator:
 
     # Base type generators for array element generation
     _ARRAY_ELEMENT_GENERATORS: ClassVar[dict[str, Any]] = {
-        "integer": lambda: fake.random_int(min=1, max=1000),
-        "bigint": lambda: fake.random_int(min=1, max=100000),
-        "smallint": lambda: fake.random_int(min=1, max=100),
-        "text": lambda: fake.word(),
-        "character varying": lambda: fake.word(),
-        "varchar": lambda: fake.word(),
-        "uuid": lambda: str(uuid_mod.uuid4()),
-        "boolean": lambda: fake.boolean(),
+        "integer": _fast_int,
+        "bigint": _fast_bigint,
+        "smallint": _fast_smallint,
+        "text": _pool_word,
+        "character varying": _pool_word,
+        "varchar": _pool_word,
+        "uuid": _fast_uuid,
+        "boolean": _fast_bool,
     }
 
     def generate(self, column_name: str, pg_type: str) -> Any:
@@ -153,14 +265,13 @@ class FakerGenerator:
         numeric_match = self._NUMERIC_RE.match(pg_type)
         if numeric_match:
             _precision, scale = int(numeric_match.group(1)), int(numeric_match.group(2))
-            value = fake.pyfloat(min_value=0, max_value=10000)
-            return round(value, scale)
+            return round(random.uniform(0, 10_000), scale)
 
         # Check for array types (e.g., "integer[]")
         array_match = self._ARRAY_RE.match(pg_type)
         if array_match:
             base_type = array_match.group(1)
-            element_gen = self._ARRAY_ELEMENT_GENERATORS.get(base_type, lambda: fake.word())
+            element_gen = self._ARRAY_ELEMENT_GENERATORS.get(base_type, _pool_word)
             return [element_gen() for _ in range(3)]
 
         # Unknown type: warn and fall back to text
@@ -169,4 +280,4 @@ class FakerGenerator:
             pg_type,
             column_name,
         )
-        return fake.text(max_nb_chars=50)
+        return _pool_text_50()
