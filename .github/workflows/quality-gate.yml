@@ -197,25 +197,14 @@ jobs:
     - name: Install dependencies
       run: uv sync --all-extras
 
-    - name: Type check fraiseql-uuid
+    - name: Type check with ty
       run: |
-        echo "=== Running mypy on fraiseql-uuid ==="
-        uv run mypy packages/fraiseql-uuid/src || {
-          echo "❌ fraiseql-uuid type check failed"
+        echo "=== Running ty type check ==="
+        uv run ty check || {
+          echo "❌ Type check failed"
           exit 1
         }
-        echo "✅ fraiseql-uuid type check passed"
-
-    - name: Type check fraiseql-data
-      run: |
-        echo "=== Running mypy on fraiseql-data ==="
-        echo "⚠️  Note: fraiseql-data (v0.1.0-beta) has known type issues being addressed"
-        echo "Skipping strict type check for now - progressive typing in progress"
-        # uv run mypy packages/fraiseql-data/src || {
-        #   echo "❌ fraiseql-data type check failed"
-        #   exit 1
-        # }
-        echo "✅ fraiseql-data type check skipped (beta release)"
+        echo "✅ Type check passed"
 
   markdown-quality:
     name: Markdown Quality & Links

@@ -41,7 +41,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.1.0",
-    "mypy>=1.8.0",
+    "ty>=0.0.7",
     "pre-commit>=3.6.0",
 ]
 
@@ -107,33 +107,24 @@ addopts = [
     "--strict-markers",
 ]
 
-[tool.mypy]
-python_version = "3.11"
-strict = true
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+[tool.ty.environment]
+python-version = "3.12"
 
-# Per-package overrides
-[[tool.mypy.overrides]]
-module = "fraiseql_data.*"
-# fraiseql-data is in beta (v0.1.0) - progressive type checking
-# TODO: Gradually enable stricter checks as code matures
-disallow_untyped_calls = false
-warn_return_any = false
-check_untyped_defs = false
-disallow_any_generics = false
-disallow_subclassing_any = false
-
-[[tool.mypy.overrides]]
-module = "fraiseql_uuid.cli.*"
-# CLI is optional (requires click extras) - skip type checking
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "fraiseql_data.cli.*"
-# CLI is optional (requires click extras) - skip type checking
-ignore_errors = true
+[tool.ty.rules]
+# ty 0.0.x is young — suppress categories where inference is unreliable
+# Revisit as ty matures and stub coverage improves
+unresolved-import = "warn"       # missing stubs: click, rich
+no-matching-overload = "warn"    # psycopg dynamic SQL patterns
+invalid-argument-type = "warn"   # psycopg LiteralString requirement
+not-subscriptable = "warn"       # None narrowing limitations
+invalid-method-override = "warn" # covariance/contravariance in overrides
+call-top-callable = "warn"       # unknown callable types (Faker lambdas)
+unresolved-attribute = "warn"    # mixin/inheritance inference
+invalid-assignment = "warn"      # dict key type inference
+not-iterable = "warn"            # Optional narrowing
+invalid-return-type = "warn"     # return type covariance
+unsupported-operator = "warn"    # operator overload inference
+missing-argument = "warn"        # overload resolution
 
 [tool.coverage.run]
 source = ["packages/*/src"]

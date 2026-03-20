@@ -50,6 +50,7 @@ htmlcov/
 dmypy.json
 .pyre/
 .pytype/
+.ty_cache/
 
 # Linting
 .ruff_cache/
