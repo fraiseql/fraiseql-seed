@@ -34,8 +34,8 @@ class SchemaIntrospector:
                 "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name = %s)",
                 (self.schema,),
             )
-            exists = cur.fetchone()[0]
-            if not exists:
+            result = cur.fetchone()
+            if result is None or not result[0]:
                 raise SchemaNotFoundError(self.schema)
 
     def get_tables(self) -> list[TableInfo]:
@@ -76,8 +76,8 @@ class SchemaIntrospector:
                 """,
                 (self.schema, table_name),
             )
-            exists = cur.fetchone()[0]
-            if not exists:
+            result = cur.fetchone()
+            if result is None or not result[0]:
                 raise TableNotFoundError(table_name, self.schema)
 
         columns = self.get_columns(table_name)

@@ -166,7 +166,7 @@ uuid = gen.generate(instance=1)
 
 ### Quality Metrics
 
-- ✅ **99/99 tests passing** (100% pass rate)
+- ✅ **All tests passing** (100% pass rate)
 - ✅ **86% code coverage** (fraiseql-data)
 - ✅ **Zero lint violations** (ruff strict mode)
 - ✅ **Type-safe** (ty strict for fraiseql-uuid)

@@ -89,70 +89,6 @@ class AutoDependencyResolver:
         visit(table)
         return dependency_list
 
-    def _query_existing_rows(self, table: str, count: int) -> list[dict[str, Any]]:
-        """
-        Query existing rows from database for reuse.
-
-        Args:
-            table: Table name to query
-            count: Maximum number of rows to fetch
-
-        Returns:
-            List of row dicts (may be less than count if insufficient data)
-
-        Example:
-            >>> rows = resolver._query_existing_rows("tb_organization", 5)
-            >>> # Returns: [{pk_organization: 1, ...}, {pk_organization: 2, ...}]
-        """
-        if not self.conn or not self.schema:
-            return []
-
-        table_info = self.introspector.get_table_info(table)
-
-        # Find primary key column
-        pk_column = None
-        for col in table_info.columns:
-            if col.is_primary_key:
-                pk_column = col.name
-                break
-
-        if not pk_column:
-            logger.warning(f"Cannot reuse rows from '{table}': no primary key found")
-            return []
-
-        # Build column list for SELECT
-        columns = [col.name for col in table_info.columns if not col.name.startswith("pk_")]
-
-        # Include pk column for ordering
-        if pk_column not in columns:
-            columns.insert(0, pk_column)
-
-        column_list = ", ".join(columns)
-
-        # Query existing rows ordered by PK
-        query = f"""
-            SELECT {column_list}
-            FROM {self.schema}.{table}
-            ORDER BY {pk_column}
-            LIMIT {count}
-        """
-
-        with self.conn.cursor() as cur:
-            cur.execute(query)
-            rows = cur.fetchall()
-
-        # Convert to list of dicts
-        row_dicts = []
-        for row in rows:
-            row_dict = {}
-            for i, col_name in enumerate(columns):
-                row_dict[col_name] = row[i]
-            row_dicts.append(row_dict)
-
-        logger.debug(f"Reused {len(row_dicts)} existing rows from '{table}' (requested {count})")
-
-        return row_dicts
-
     def resolve_dependencies(
         self,
         table: str,
@@ -174,12 +110,9 @@ class AutoDependencyResolver:
                 - dict: Explicit counts/overrides per table
             current_plan: Existing seed plans (to check for conflicts)
             target_count: Target table count (for warnings if dep > target)
-            reuse_existing: Whether to reuse existing database rows
 
         Returns:
-            Tuple of (plans_to_add, reused_data)
-            - plans_to_add: List of SeedPlan objects for dependencies to add
-            - reused_data: Dict mapping table name to list of reused row dicts
+            List of SeedPlan objects for dependencies to add
 
         Raises:
             None - Logs warnings for conflicts/unusual configs

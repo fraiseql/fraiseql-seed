@@ -1,6 +1,7 @@
 """Direct INSERT backend — uses COPY for bulk, INSERT for single rows."""
 
 import json
+from dataclasses import dataclass
 from typing import Any
 
 from psycopg import Connection, sql
@@ -12,6 +13,18 @@ from fraiseql_data.models import TableInfo
 # COPY has per-statement overhead (SELECT back) that makes it slower
 # than INSERT ... RETURNING for small batches.
 COPY_THRESHOLD = 50
+
+
+@dataclass(frozen=True, slots=True)
+class _InsertContext:
+    """Shared state for INSERT operations."""
+
+    insert_columns: list[str]
+    col_types: dict[str, str]
+    columns_sql: sql.Composable
+    all_columns_sql: sql.Composable
+    override_clause: sql.Composable
+    qualified_table: sql.Composable
 
 
 class DirectBackend:
@@ -60,6 +73,49 @@ class DirectBackend:
         return value
 
     # ------------------------------------------------------------------
+    # Shared helpers
+    # ------------------------------------------------------------------
+
+    def _prepare_insert(self, table_info: TableInfo, rows: list[dict[str, Any]]) -> _InsertContext:
+        """Build shared SQL fragments for INSERT operations."""
+        first_row = rows[0]
+        insert_columns = [
+            col.name
+            for col in table_info.columns
+            if col.name in first_row and first_row[col.name] is not None
+        ]
+
+        # pk_ columns in data means pre-allocated PKs (convention, not SQL)
+        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
+        col_types = {col.name: col.pg_type for col in table_info.columns}
+
+        columns_sql = sql.SQL(", ").join(sql.Identifier(c) for c in insert_columns)
+        all_columns_sql = sql.SQL(", ").join(sql.Identifier(col.name) for col in table_info.columns)
+        override_clause = (
+            sql.SQL(" OVERRIDING SYSTEM VALUE") if has_preallocated_pk else sql.SQL("")
+        )
+        qualified_table = sql.Identifier(self.schema, table_info.name)
+
+        return _InsertContext(
+            insert_columns=insert_columns,
+            col_types=col_types,
+            columns_sql=columns_sql,
+            all_columns_sql=all_columns_sql,
+            override_clause=override_clause,
+            qualified_table=qualified_table,
+        )
+
+    @staticmethod
+    def _rows_to_dicts(
+        result_rows: list[tuple[Any, ...]], table_info: TableInfo
+    ) -> list[dict[str, Any]]:
+        """Convert raw cursor tuples to column-keyed dicts."""
+        return [
+            {col.name: result[idx] for idx, col in enumerate(table_info.columns)}
+            for result in result_rows
+        ]
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -92,15 +148,7 @@ class DirectBackend:
         if not rows:
             return []
 
-        first_row = rows[0]
-        insert_columns = [
-            col.name
-            for col in table_info.columns
-            if col.name in first_row and first_row[col.name] is not None
-        ]
-
-        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
-        col_types = {col.name: col.pg_type for col in table_info.columns}
+        ctx = self._prepare_insert(table_info, rows)
 
         # Find the PK/identity column for ordering the SELECT back
         identity_col = next(
@@ -108,39 +156,52 @@ class DirectBackend:
             None,
         )
 
-        qualified_table = f"{self.schema}.{table_info.name}"
-        columns_list = ", ".join(insert_columns)
-        all_columns = ", ".join(col.name for col in table_info.columns)
-
         with self.conn.cursor() as cur:
             # For OVERRIDING SYSTEM VALUE we need to use a writable CTE
             # because COPY doesn't support it directly. Use a temp table.
+            has_preallocated_pk = any(col.startswith("pk_") for col in ctx.insert_columns)
             if has_preallocated_pk:
-                # Create temp table matching insert columns
-                temp_cols = ", ".join(
-                    f"{col} {next(c.pg_type for c in table_info.columns if c.name == col)}"
-                    for col in insert_columns
+                # Create temp table matching insert columns.
+                # Column types come from introspection — use sql.SQL() for type
+                # names (they are keywords/type names, not identifiers).
+                temp_col_defs = sql.SQL(", ").join(
+                    sql.SQL("{} {}").format(
+                        sql.Identifier(col),
+                        sql.SQL(next(c.pg_type for c in table_info.columns if c.name == col)),
+                    )
+                    for col in ctx.insert_columns
                 )
-                cur.execute(f"CREATE TEMP TABLE _seed_copy_buf ({temp_cols}) ON COMMIT DROP")
+                cur.execute(
+                    sql.SQL("CREATE TEMP TABLE _seed_copy_buf ({}) ON COMMIT DROP").format(
+                        temp_col_defs
+                    )
+                )
 
                 # COPY into temp table
-                copy_sql = f"COPY _seed_copy_buf ({columns_list}) FROM STDIN"
-                with cur.copy(copy_sql) as copy:
+                copy_stmt = sql.SQL("COPY {} ({}) FROM STDIN").format(
+                    sql.Identifier("_seed_copy_buf"), ctx.columns_sql
+                )
+                with cur.copy(copy_stmt) as copy:
                     for row in rows:
                         copy.write_row(
                             [
-                                self._adapt_value_copy(row.get(col), col_types.get(col, ""))
-                                for col in insert_columns
+                                self._adapt_value_copy(row.get(col), ctx.col_types.get(col, ""))
+                                for col in ctx.insert_columns
                             ]
                         )
 
                 # INSERT from temp into real table with OVERRIDING SYSTEM VALUE
-                cur.execute(f"""
-                    INSERT INTO {qualified_table} ({columns_list})
-                    OVERRIDING SYSTEM VALUE
-                    SELECT {columns_list} FROM _seed_copy_buf
-                    RETURNING {all_columns}
-                """)
+                cur.execute(
+                    sql.SQL(
+                        "INSERT INTO {} ({}) OVERRIDING SYSTEM VALUE SELECT {} FROM {} RETURNING {}"
+                    ).format(
+                        ctx.qualified_table,
+                        ctx.columns_sql,
+                        ctx.columns_sql,
+                        sql.Identifier("_seed_copy_buf"),
+                        ctx.all_columns_sql,
+                    )
+                )
                 result_rows = cur.fetchall()
             else:
                 # Record the max identity value before insert (for SELECT back)
@@ -149,39 +210,47 @@ class DirectBackend:
                     cur.execute(
                         sql.SQL("SELECT COALESCE(MAX({}), 0) FROM {}").format(
                             sql.Identifier(identity_col),
-                            sql.SQL(qualified_table),
+                            ctx.qualified_table,
                         )
                     )
-                    pre_max = cur.fetchone()[0]
+                    row = cur.fetchone()
+                    assert row is not None
+                    pre_max = row[0]
 
                 # COPY directly into target table
-                copy_sql = f"COPY {qualified_table} ({columns_list}) FROM STDIN"
-                with cur.copy(copy_sql) as copy:
+                copy_stmt = sql.SQL("COPY {} ({}) FROM STDIN").format(
+                    ctx.qualified_table, ctx.columns_sql
+                )
+                with cur.copy(copy_stmt) as copy:
                     for row in rows:
                         copy.write_row(
                             [
-                                self._adapt_value_copy(row.get(col), col_types.get(col, ""))
-                                for col in insert_columns
+                                self._adapt_value_copy(row.get(col), ctx.col_types.get(col, ""))
+                                for col in ctx.insert_columns
                             ]
                         )
 
                 # SELECT back inserted rows (using identity column range)
                 if identity_col and pre_max is not None:
                     cur.execute(
-                        f"SELECT {all_columns} FROM {qualified_table} "
-                        f"WHERE {identity_col} > %s ORDER BY {identity_col}",
+                        sql.SQL("SELECT {} FROM {} WHERE {} > %s ORDER BY {}").format(
+                            ctx.all_columns_sql,
+                            ctx.qualified_table,
+                            sql.Identifier(identity_col),
+                            sql.Identifier(identity_col),
+                        ),
                         (pre_max,),
                     )
                 else:
                     # No identity column — fall back to SELECT all
-                    cur.execute(f"SELECT {all_columns} FROM {qualified_table}")
+                    cur.execute(
+                        sql.SQL("SELECT {} FROM {}").format(
+                            ctx.all_columns_sql, ctx.qualified_table
+                        )
+                    )
                 result_rows = cur.fetchall()
 
-        inserted_rows = [
-            {col.name: result[idx] for idx, col in enumerate(table_info.columns)}
-            for result in result_rows
-        ]
-
+        inserted_rows = self._rows_to_dicts(result_rows, table_info)
         self.conn.commit()
         return inserted_rows
 
@@ -198,43 +267,33 @@ class DirectBackend:
         if not rows:
             return []
 
-        first_row = rows[0]
-        insert_columns = [
-            col.name
-            for col in table_info.columns
-            if col.name in first_row and first_row[col.name] is not None
-        ]
+        ctx = self._prepare_insert(table_info, rows)
 
-        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
-        col_types = {col.name: col.pg_type for col in table_info.columns}
+        single_placeholder = sql.SQL("({})").format(
+            sql.SQL(", ").join(sql.Placeholder() for _ in ctx.insert_columns)
+        )
+        placeholders = sql.SQL(", ").join(single_placeholder for _ in rows)
 
-        columns_list = ", ".join(insert_columns)
-        single_placeholder = f"({','.join(['%s'] * len(insert_columns))})"
-        placeholders = ", ".join([single_placeholder] * len(rows))
-        all_columns = ", ".join(col.name for col in table_info.columns)
-        override_clause = " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
+        insert_stmt = sql.SQL("INSERT INTO {} ({}){} VALUES {} RETURNING {}").format(
+            ctx.qualified_table,
+            ctx.columns_sql,
+            ctx.override_clause,
+            placeholders,
+            ctx.all_columns_sql,
+        )
 
-        insert_sql = f"""
-            INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}
-            VALUES {placeholders}
-            RETURNING {all_columns}
-        """
-
-        values = []
+        values: list[Any] = []
         for row in rows:
             values.extend(
-                self._adapt_value(row.get(col), col_types.get(col, "")) for col in insert_columns
+                self._adapt_value(row.get(col), ctx.col_types.get(col, ""))
+                for col in ctx.insert_columns
             )
 
         with self.conn.cursor() as cur:
-            cur.execute(insert_sql, values)
+            cur.execute(insert_stmt, values)
             result_rows = cur.fetchall()
 
-        inserted_rows = [
-            {col.name: result[idx] for idx, col in enumerate(table_info.columns)}
-            for result in result_rows
-        ]
-
+        inserted_rows = self._rows_to_dicts(result_rows, table_info)
         self.conn.commit()
         return inserted_rows
 
@@ -245,36 +304,27 @@ class DirectBackend:
         if not rows:
             return []
 
-        first_row = rows[0]
-        insert_columns = [
-            col.name
-            for col in table_info.columns
-            if col.name in first_row and first_row[col.name] is not None
-        ]
+        ctx = self._prepare_insert(table_info, rows)
 
-        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
-        col_types = {col.name: col.pg_type for col in table_info.columns}
-
-        columns_list = ", ".join(insert_columns)
-        placeholders = ", ".join(["%s"] * len(insert_columns))
-        all_columns = ", ".join(col.name for col in table_info.columns)
-        override_clause = " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
-
-        insert_sql = f"""
-            INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}
-            VALUES ({placeholders})
-            RETURNING {all_columns}
-        """
+        placeholders = sql.SQL(", ").join(sql.Placeholder() for _ in ctx.insert_columns)
+        insert_stmt = sql.SQL("INSERT INTO {} ({}){} VALUES ({}) RETURNING {}").format(
+            ctx.qualified_table,
+            ctx.columns_sql,
+            ctx.override_clause,
+            placeholders,
+            ctx.all_columns_sql,
+        )
 
         inserted_rows = []
         with self.conn.cursor() as cur:
             for row in rows:
                 values = [
-                    self._adapt_value(row.get(col), col_types.get(col, ""))
-                    for col in insert_columns
+                    self._adapt_value(row.get(col), ctx.col_types.get(col, ""))
+                    for col in ctx.insert_columns
                 ]
-                cur.execute(insert_sql, values)
+                cur.execute(insert_stmt, values)
                 result = cur.fetchone()
+                assert result is not None
                 complete_row = {col.name: result[i] for i, col in enumerate(table_info.columns)}
                 inserted_rows.append(complete_row)
 

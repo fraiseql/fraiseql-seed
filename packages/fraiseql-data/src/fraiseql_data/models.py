@@ -82,8 +82,8 @@ class TableInfo:
         name: Table name
         columns: List of column metadata
         foreign_keys: List of foreign key relationships
-        multi_unique_constraints: Multi-column UNIQUE constraints (Phase 3)
-        check_constraints: CHECK constraints (Phase 3)
+        multi_unique_constraints: Multi-column UNIQUE constraints
+        check_constraints: CHECK constraints
     """
 
     name: str

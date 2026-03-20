@@ -61,7 +61,7 @@ uuid = generator.generate(instance=1)  # Collision-resistant
 
 **fraiseql-data** provides safe seed data generation with security best practices:
 
-1. **SQL Injection Prevention**: All queries use parameterized statements via psycopg3
+1. **SQL Injection Prevention**: All SQL construction uses `psycopg.sql` composable objects (`sql.Identifier`, `sql.SQL`) and parameterized statements
 2. **Schema Introspection**: Read-only database introspection
 3. **Constraint Validation**: Enforces CHECK, UNIQUE, and FK constraints
 4. **No Data Exposure**: Staging backend works without database connection

@@ -76,7 +76,7 @@ class CircularDependencyError(FraiseQLDataError):
             f"Circular dependency detected involving tables: {tables_str}\n\n"
             f"Suggestions:\n"
             f"1. Check foreign key relationships for cycles\n"
-            f"2. If self-referencing table, this will be supported in Phase 2\n"
+            f"2. For self-referencing tables, make the FK column nullable\n"
             f"3. Temporarily remove FK constraint, seed data, then re-add constraint"
         )
 

@@ -21,7 +21,7 @@ class StagingBackend:
     def __init__(self):
         """Initialize staging backend with empty state."""
         self._data: dict[str, list[dict[str, Any]]] = {}
-        self._pk_sequences: dict[str, int] = {}
+        self._pk_sequences: dict[str | tuple[str, Any], int] = {}
         self._trinity_simulation_enabled = False
         # Simulate Trinity's uuid_allocation_log: (table_name, uuid_value, tenant_id) → pk_value
         self._uuid_allocation_log: dict[tuple[str, str, Any], int] = {}

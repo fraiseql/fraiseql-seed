@@ -23,11 +23,12 @@ def seed_data(
 
     def decorator(func: Callable) -> Callable:
         # Get existing seed plans or create new list
-        if not hasattr(func, "_seed_plans"):
-            func._seed_plans = []
+        plans: list[dict[str, Any]] = getattr(func, "_seed_plans", [])
+        if not plans:
+            func._seed_plans = plans  # type: ignore[attr-defined]
 
         # Add this seed plan to function metadata
-        func._seed_plans.append(
+        plans.append(
             {
                 "table": table,
                 "count": count,

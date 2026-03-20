@@ -12,6 +12,7 @@ from fraiseql_data.auto_deps import AutoDependencyResolver
 from fraiseql_data.exceptions import (
     ColumnGenerationError,
     ForeignKeyResolutionError,
+    MultiColumnUniqueConstraintError,
     SelfReferenceError,
     UniqueConstraintError,
 )
@@ -761,8 +762,6 @@ class SeedBuilder:
                 # Check if tuple already exists
                 if tuple_values in multi_unique_tuples[constraint.constraint_name]:
                     # Collision detected
-                    from fraiseql_data.exceptions import MultiColumnUniqueConstraintError
-
                     raise MultiColumnUniqueConstraintError(
                         constraint.columns,
                         table_info.name,
