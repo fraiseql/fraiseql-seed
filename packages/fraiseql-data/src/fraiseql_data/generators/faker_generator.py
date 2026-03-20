@@ -6,6 +6,7 @@ import random
 import re
 import uuid as uuid_mod
 from datetime import timedelta
+from ipaddress import IPv4Network
 from typing import Any, ClassVar
 
 from faker import Faker
@@ -94,7 +95,7 @@ class FakerGenerator:
         "json": lambda: {"key": fake.word(), "value": fake.sentence()},
         # Network types
         "inet": lambda: fake.ipv4(),
-        "cidr": lambda: f"{fake.ipv4()}/24",
+        "cidr": lambda: str(IPv4Network(f"{fake.ipv4()}/24", strict=False)),
         "macaddr": lambda: fake.mac_address(),
         "macaddr8": _generate_macaddr8,
         # Binary

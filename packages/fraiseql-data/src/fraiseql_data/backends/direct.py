@@ -3,6 +3,7 @@
 from typing import Any
 
 from psycopg import Connection
+from psycopg.types.json import Json, Jsonb
 
 from fraiseql_data.models import TableInfo
 
@@ -28,6 +29,21 @@ class DirectBackend:
         """
         self.conn = conn
         self.schema = schema
+
+    @staticmethod
+    def _adapt_value(value: Any, pg_type: str) -> Any:
+        """Wrap Python values for psycopg3 parameter binding.
+
+        psycopg3 cannot auto-adapt dict/list to JSON/JSONB — they must
+        be wrapped in Json()/Jsonb() explicitly.
+        """
+        if value is None:
+            return None
+        if pg_type == "jsonb" and isinstance(value, (dict, list)):
+            return Jsonb(value)
+        if pg_type == "json" and isinstance(value, (dict, list)):
+            return Json(value)
+        return value
 
     def insert_rows(
         self,
@@ -111,10 +127,16 @@ class DirectBackend:
                 RETURNING {all_columns}
             """
 
+            # Build column type lookup for value adaptation
+            col_types = {col.name: col.pg_type for col in table_info.columns}
+
             # Flatten values: [row1_col1, row1_col2, row2_col1, row2_col2, ...]
             values = []
             for row in batch:
-                values.extend(row.get(col) for col in insert_columns)
+                values.extend(
+                    self._adapt_value(row.get(col), col_types.get(col, ""))
+                    for col in insert_columns
+                )
 
             # Execute bulk insert
             with self.conn.cursor() as cur:
@@ -177,11 +199,17 @@ class DirectBackend:
             RETURNING {all_columns}
         """
 
+        # Build column type lookup for value adaptation
+        col_types = {col.name: col.pg_type for col in table_info.columns}
+
         inserted_rows = []
         with self.conn.cursor() as cur:
             for row in rows:
-                # Extract values in correct order
-                values = [row.get(col) for col in insert_columns]
+                # Extract values in correct order, adapting types for psycopg3
+                values = [
+                    self._adapt_value(row.get(col), col_types.get(col, ""))
+                    for col in insert_columns
+                ]
 
                 # Execute and get returned row
                 cur.execute(sql, values)

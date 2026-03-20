@@ -1,5 +1,7 @@
 """Schema introspection with caching and optimized queries."""
 
+from typing import ClassVar
+
 from psycopg import Connection
 
 from fraiseql_data.dependency import DependencyGraph
@@ -108,7 +110,8 @@ class SchemaIntrospector:
                     c.is_nullable,
                     c.column_default,
                     CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk,
-                    COALESCE(c.is_identity, 'NO') as is_identity
+                    COALESCE(c.is_identity, 'NO') as is_identity,
+                    c.udt_name
                 FROM information_schema.columns c
                 LEFT JOIN (
                     SELECT kcu.column_name
@@ -131,7 +134,7 @@ class SchemaIntrospector:
         return [
             ColumnInfo(
                 name=row[0],
-                pg_type=row[1],
+                pg_type=self._resolve_pg_type(row[1], row[6]),
                 is_nullable=row[2] == "YES",
                 default_value=row[3],
                 is_primary_key=row[4],
@@ -140,6 +143,35 @@ class SchemaIntrospector:
             )
             for row in rows
         ]
+
+    _UDT_ELEMENT_TYPES: ClassVar[dict[str, str]] = {
+        "_int4": "integer",
+        "_int8": "bigint",
+        "_int2": "smallint",
+        "_text": "text",
+        "_varchar": "character varying",
+        "_uuid": "uuid",
+        "_bool": "boolean",
+        "_float4": "real",
+        "_float8": "double precision",
+        "_numeric": "numeric",
+        "_timestamptz": "timestamp with time zone",
+        "_timestamp": "timestamp without time zone",
+        "_date": "date",
+        "_jsonb": "jsonb",
+        "_json": "json",
+        "_inet": "inet",
+        "_macaddr": "macaddr",
+        "_bytea": "bytea",
+    }
+
+    @classmethod
+    def _resolve_pg_type(cls, data_type: str, udt_name: str) -> str:
+        """Resolve the effective pg_type, expanding ARRAY with element info."""
+        if data_type == "ARRAY" and udt_name.startswith("_"):
+            element_type = cls._UDT_ELEMENT_TYPES.get(udt_name, udt_name.lstrip("_"))
+            return f"{element_type}[]"
+        return data_type
 
     def get_unique_constraints(self, table_name: str) -> set[str]:
         """
