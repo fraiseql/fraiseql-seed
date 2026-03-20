@@ -18,6 +18,7 @@ from fraiseql_data.exceptions import (
     UniqueConstraintError,
 )
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
+from fraiseql_data.generators.groups import GroupRegistry
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
 
 logger = logging.getLogger(__name__)
@@ -640,6 +641,11 @@ class SeedBuilder:
                         f"Consider providing overrides for affected columns."
                     )
 
+        # Detect active groups
+        registry = GroupRegistry()
+        column_names = {col.name for col in table_info.columns}
+        active_groups = registry.detect_groups(column_names)
+
         # Track UNIQUE column values to avoid duplicates
         unique_values: dict[str, set[Any]] = {}
 
@@ -658,6 +664,28 @@ class SeedBuilder:
             range(instance_start, instance_start + plan.count), start=1
         ):
             row: dict[str, Any] = {}
+
+            # Generate group values for this row
+            group_values: dict[str, Any] = {}
+            if active_groups:
+                for group in active_groups:
+                    # Build context: overrides for this group + prior group outputs
+                    context: dict[str, Any] = {
+                        col_name: self._apply_override(val, counter)
+                        for col_name, val in plan.overrides.items()
+                        if col_name in group.fields
+                    }
+                    context.update(group_values)
+                    values = group.generator(context)
+                    group_values.update(
+                        {
+                            k: v
+                            for k, v in values.items()
+                            if k not in plan.overrides
+                            and k not in check_rules
+                            and (k in column_names or k.startswith("_"))
+                        }
+                    )
 
             # Generate data for each column
             for col in table_info.columns:
@@ -680,6 +708,11 @@ class SeedBuilder:
                 # Check for override (before FK resolution so overrides take priority)
                 if col.name in plan.overrides:
                     row[col.name] = self._apply_override(plan.overrides[col.name], counter)
+                    continue
+
+                # Use group-generated value if available
+                if col.name in group_values:
+                    row[col.name] = group_values[col.name]
                     continue
 
                 # Handle foreign keys
