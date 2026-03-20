@@ -266,7 +266,7 @@ For SBOM-related questions or procurement inquiries:
 EOF
 
     - name: Upload SBOM artifacts
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v4
       with:
         name: sbom-${{ matrix.package }}-${{ steps.version.outputs.version }}
         path: sbom-artifacts/
@@ -274,7 +274,7 @@ EOF
 
     - name: Attach SBOM to Release
       if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           ${{ steps.metadata.outputs.component_name }}-${{ steps.version.outputs.version }}-sbom.json

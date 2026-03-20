@@ -1,0 +1,228 @@
+name: Deploy & Publish
+
+# Branch-triggered deployment pipeline:
+#   dev     → build + test only (no publish)
+#   staging → build + test + publish to TestPyPI (pre-release)
+#   main    → build + test + publish to PyPI + GitHub Release
+on:
+  push:
+    branches: [dev, staging, main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # GitHub Release creation
+  id-token: write   # PyPI trusted publishing (OIDC)
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1. Check whether a deploy is needed (version bump detection)
+  # ------------------------------------------------------------------
+  check-version:
+    name: Check Version
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.check.outputs.should_deploy }}
+      version: ${{ steps.check.outputs.version }}
+      previous_version: ${{ steps.check.outputs.previous_version }}
+      environment: ${{ steps.env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need HEAD and HEAD~1 for diff
+
+      - name: Detect environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            case "${{ github.ref_name }}" in
+              dev)     echo "environment=development" >> $GITHUB_OUTPUT ;;
+              staging) echo "environment=staging"     >> $GITHUB_OUTPUT ;;
+              main)    echo "environment=production"  >> $GITHUB_OUTPUT ;;
+              *)       echo "environment=unknown"     >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Check for version change
+        id: check
+        run: |
+          CURRENT=$(jq -r .version version.json)
+          PREVIOUS=$(git show HEAD~1:version.json 2>/dev/null | jq -r .version 2>/dev/null || echo "none")
+
+          echo "version=$CURRENT" >> $GITHUB_OUTPUT
+          echo "previous_version=$PREVIOUS" >> $GITHUB_OUTPUT
+
+          # Always deploy on workflow_dispatch or staging push
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Deploy reason: manual trigger"
+          elif [ "${{ github.ref_name }}" = "staging" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Deploy reason: staging push"
+          elif [ "$CURRENT" != "$PREVIOUS" ]; then
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "Deploy reason: version bumped $PREVIOUS → $CURRENT"
+          else
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            echo "No version change ($CURRENT) — skipping deploy"
+          fi
+
+  # ------------------------------------------------------------------
+  # 2. Build both packages
+  # ------------------------------------------------------------------
+  build:
+    name: Build Packages
+    runs-on: ubuntu-latest
+    needs: check-version
+    if: needs.check-version.outputs.should_deploy == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Run quality checks
+        run: |
+          uv run ruff check
+          uv run ruff format --check
+          uv run ty check
+
+      - name: Build fraiseql-uuid
+        run: |
+          cd packages/fraiseql-uuid
+          uv build
+          echo "=== Built packages ==="
+          ls -la dist/
+
+      - name: Build fraiseql-data
+        run: |
+          cd packages/fraiseql-data
+          uv build
+          echo "=== Built packages ==="
+          ls -la dist/
+
+      - name: Upload fraiseql-uuid dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-fraiseql-uuid
+          path: packages/fraiseql-uuid/dist/
+
+      - name: Upload fraiseql-data dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-fraiseql-data
+          path: packages/fraiseql-data/dist/
+
+  # ------------------------------------------------------------------
+  # 3. Publish (environment-dependent)
+  # ------------------------------------------------------------------
+  publish:
+    name: Publish (${{ needs.check-version.outputs.environment }})
+    runs-on: ubuntu-latest
+    needs: [check-version, build]
+    if: needs.check-version.outputs.environment != 'development'
+    environment:
+      name: ${{ needs.check-version.outputs.environment == 'production' && 'pypi' || 'testpypi' }}
+      url: ${{ needs.check-version.outputs.environment == 'production' && 'https://pypi.org/project/fraiseql-data/' || 'https://test.pypi.org/project/fraiseql-data/' }}
+    steps:
+      - name: Download fraiseql-uuid dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-fraiseql-uuid
+          path: dist-uuid/
+
+      - name: Download fraiseql-data dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-fraiseql-data
+          path: dist-data/
+
+      # Publish fraiseql-uuid first (fraiseql-data depends on it)
+      - name: Publish fraiseql-uuid to ${{ needs.check-version.outputs.environment == 'production' && 'PyPI' || 'TestPyPI' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-uuid/
+          repository-url: ${{ needs.check-version.outputs.environment == 'production' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+          skip-existing: true
+
+      # Then publish fraiseql-data
+      - name: Publish fraiseql-data to ${{ needs.check-version.outputs.environment == 'production' && 'PyPI' || 'TestPyPI' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-data/
+          repository-url: ${{ needs.check-version.outputs.environment == 'production' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
+          skip-existing: true
+
+  # ------------------------------------------------------------------
+  # 4. GitHub Release (production only)
+  # ------------------------------------------------------------------
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [check-version, build, publish]
+    if: needs.check-version.outputs.environment == 'production'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-version.outputs.version }}
+          name: v${{ needs.check-version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            all-dist/dist-fraiseql-uuid/*
+            all-dist/dist-fraiseql-data/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------------
+  # 5. Notify
+  # ------------------------------------------------------------------
+  notify:
+    name: Deploy Summary
+    runs-on: ubuntu-latest
+    needs: [check-version, build, publish, release]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          ENV="${{ needs.check-version.outputs.environment }}"
+          VER="${{ needs.check-version.outputs.version }}"
+
+          echo "## Deploy Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment | $ENV |" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | $VER |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Publish | ${{ needs.publish.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release | ${{ needs.release.result }} |" >> $GITHUB_STEP_SUMMARY
