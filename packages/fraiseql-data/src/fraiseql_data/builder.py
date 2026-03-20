@@ -633,7 +633,15 @@ class SeedBuilder:
 
             # Generate data for each column
             for col in table_info.columns:
-                # Skip pk_* IDENTITY columns (database generates)
+                # Skip identity columns (GENERATED ALWAYS/BY DEFAULT AS IDENTITY)
+                if col.is_identity:
+                    continue
+
+                # Skip serial columns (nextval default on PK)
+                if col.is_primary_key and col.default_value and "nextval(" in col.default_value:
+                    continue
+
+                # Skip pk_* columns (database generates via sequence/identity)
                 if col.is_primary_key and col.name.startswith("pk_"):
                     continue
 

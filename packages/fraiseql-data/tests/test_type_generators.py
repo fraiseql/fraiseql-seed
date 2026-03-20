@@ -6,7 +6,9 @@ import uuid
 from datetime import time, timedelta
 from ipaddress import IPv4Address, IPv4Network
 
+from fraiseql_data import SeedBuilder
 from fraiseql_data.generators.faker_generator import FakerGenerator
+from fraiseql_data.models import ColumnInfo, TableInfo
 
 
 class TestUUIDGeneration:
@@ -176,3 +178,56 @@ class TestUnknownTypeWarning:
             gen.generate("col", "integer")
 
         assert not any("integer" in r.message for r in caplog.records)
+
+
+class TestIdentityAndSerialSkip:
+    """Cycle 9: Identity and serial columns are skipped."""
+
+    def test_identity_column_skipped_in_staging(self):
+        """GENERATED ALWAYS AS IDENTITY columns should not appear in generated rows."""
+        builder = SeedBuilder(None, schema="test", backend="staging")
+        table_info = TableInfo(
+            name="tb_test",
+            columns=[
+                ColumnInfo(
+                    name="pk_test",
+                    pg_type="integer",
+                    is_nullable=False,
+                    is_primary_key=True,
+                    is_identity=True,
+                ),
+                ColumnInfo(name="name", pg_type="text", is_nullable=False),
+            ],
+        )
+        builder.set_table_schema("tb_test", table_info)
+        builder.add("tb_test", count=3)
+        seeds = builder.execute()
+        rows = seeds.tb_test
+        assert len(rows) == 3
+        for row in rows:
+            assert not hasattr(row, "pk_test") or row.pk_test is not None
+            assert row.name is not None
+
+    def test_serial_column_skipped_via_nextval_default(self):
+        """Serial columns (nextval default on PK) should be skipped."""
+        builder = SeedBuilder(None, schema="test", backend="staging")
+        table_info = TableInfo(
+            name="tb_test",
+            columns=[
+                ColumnInfo(
+                    name="serial_id",
+                    pg_type="integer",
+                    is_nullable=False,
+                    is_primary_key=True,
+                    default_value="nextval('tb_test_id_seq'::regclass)",
+                ),
+                ColumnInfo(name="value", pg_type="text", is_nullable=False),
+            ],
+        )
+        builder.set_table_schema("tb_test", table_info)
+        builder.add("tb_test", count=2)
+        seeds = builder.execute()
+        rows = seeds.tb_test
+        assert len(rows) == 2
+        for row in rows:
+            assert row.value is not None

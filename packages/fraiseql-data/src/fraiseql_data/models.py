@@ -24,6 +24,7 @@ class ColumnInfo:
     is_primary_key: bool = False
     default_value: str | None = None
     is_unique: bool = False
+    is_identity: bool = False
 
 
 @dataclass

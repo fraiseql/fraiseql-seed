@@ -99,7 +99,7 @@ class SchemaIntrospector:
         unique_columns = self.get_unique_constraints(table_name)
 
         with self.conn.cursor() as cur:
-            # Single query to get columns + PK info
+            # Single query to get columns + PK info + identity detection
             cur.execute(
                 """
                 SELECT
@@ -107,7 +107,8 @@ class SchemaIntrospector:
                     c.data_type,
                     c.is_nullable,
                     c.column_default,
-                    CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk
+                    CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk,
+                    COALESCE(c.is_identity, 'NO') as is_identity
                 FROM information_schema.columns c
                 LEFT JOIN (
                     SELECT kcu.column_name
@@ -135,6 +136,7 @@ class SchemaIntrospector:
                 default_value=row[3],
                 is_primary_key=row[4],
                 is_unique=row[0] in unique_columns,
+                is_identity=row[5] == "YES",
             )
             for row in rows
         ]
