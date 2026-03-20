@@ -22,6 +22,8 @@ from fraiseql_data.models import SeedPlan, Seeds, TableInfo
 
 logger = logging.getLogger(__name__)
 
+_seed_common_warned = False
+
 # Constants for generation logic
 MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
 
@@ -264,13 +266,16 @@ class SeedBuilder:
         from fraiseql_data.seed_common import SeedCommon, SeedCommonValidationError
 
         if seed_common is None:
-            logger.warning(
-                "No seed common defined. UUID collisions may occur when "
-                "creating multiple SeedBuilder instances.\n"
-                "Recommendation: Define seed common baseline:\n"
-                "  SeedBuilder(..., seed_common='db/')\n"
-                "This warning will become an error in v2.0."
-            )
+            global _seed_common_warned  # noqa: PLW0603
+            if validate_seed_common and not _seed_common_warned:
+                _seed_common_warned = True
+                logger.warning(
+                    "No seed common defined. UUID collisions may occur when "
+                    "creating multiple SeedBuilder instances.\n"
+                    "Recommendation: Define seed common baseline:\n"
+                    "  SeedBuilder(..., seed_common='db/')\n"
+                    "This warning will become an error in v2.0."
+                )
             self._seed_common = SeedCommon(instance_offsets={}, data=None)
         elif isinstance(seed_common, SeedCommon):
             self._seed_common = seed_common
