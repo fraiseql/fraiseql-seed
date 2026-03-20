@@ -109,9 +109,53 @@ def generate_person(context: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _generate_geo_stub(_context: dict[str, Any]) -> dict[str, Any]:
-    """Stub geo generator (replaced in Cycle 6)."""
-    return {}
+LOCALE_CENTROIDS: dict[str, tuple[float, float]] = {
+    "en_US": (39.8, -98.6),
+    "fr_FR": (46.6, 2.2),
+    "de_DE": (51.2, 10.4),
+    "ja_JP": (36.2, 138.3),
+    "en_GB": (53.5, -2.4),
+    "it_IT": (42.5, 12.6),
+    "es_ES": (40.0, -3.7),
+    "pt_BR": (-14.2, -51.9),
+    "en_CA": (56.1, -106.3),
+    "en_AU": (-25.3, 133.8),
+    "es_MX": (23.6, -102.6),
+    "nl_NL": (52.1, 5.3),
+    "pl_PL": (51.9, 19.1),
+    "sv_SE": (62.0, 15.0),
+    "no_NO": (64.5, 12.5),
+}
+
+_GEO_JITTER = 5.0  # degrees of random jitter around centroid
+
+
+def generate_geo(context: dict[str, Any]) -> dict[str, Any]:
+    """Generate coherent lat/lng pair, biased by locale if available."""
+    locale = context.get("_locale")
+
+    if locale and locale in LOCALE_CENTROIDS:
+        center_lat, center_lng = LOCALE_CENTROIDS[locale]
+        lat = center_lat + random.uniform(-_GEO_JITTER, _GEO_JITTER)
+        lng = center_lng + random.uniform(-_GEO_JITTER, _GEO_JITTER)
+    else:
+        lat = random.uniform(-90, 90)
+        lng = random.uniform(-180, 180)
+
+    # Clamp to valid ranges
+    lat = max(-90.0, min(90.0, lat))
+    lng = max(-180.0, min(180.0, lng))
+
+    lat = round(lat, 6)
+    lng = round(lng, 6)
+
+    return {
+        "latitude": lat,
+        "longitude": lng,
+        "lat": lat,
+        "lng": lng,
+        "lon": lng,
+    }
 
 
 BUILTIN_GROUPS: list[ColumnGroup] = [
@@ -140,7 +184,7 @@ BUILTIN_GROUPS: list[ColumnGroup] = [
     ColumnGroup(
         name="geo",
         fields=frozenset({"latitude", "longitude", "lat", "lng", "lon"}),
-        generator=_generate_geo_stub,
+        generator=generate_geo,
     ),
 ]
 

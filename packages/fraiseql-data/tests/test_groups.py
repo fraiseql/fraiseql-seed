@@ -6,6 +6,7 @@ from fraiseql_data.generators.groups import (
     ColumnGroup,
     GroupRegistry,
     generate_address,
+    generate_geo,
     generate_person,
 )
 
@@ -370,3 +371,73 @@ class TestGeneratePersonPooling:
             assert isinstance(result, dict)
             assert "first_name" in result
             assert "email" in result
+
+
+# -- Cycle 6: Geo Group Generator ---------------------------------------------
+
+GEO_FIELDS = {"latitude", "longitude", "lat", "lng", "lon"}
+
+
+class TestGenerateGeoReturnShape:
+    """Test generate_geo() returns dict with expected keys."""
+
+    def test_returns_all_geo_fields(self):
+        result = generate_geo({})
+        for field in GEO_FIELDS:
+            assert field in result, f"Missing field: {field}"
+
+    def test_all_values_are_numeric(self):
+        result = generate_geo({})
+        for key, value in result.items():
+            if key.startswith("_"):
+                continue
+            assert isinstance(value, float), f"{key} is {type(value)}, expected float"
+
+
+class TestGenerateGeoValidCoordinates:
+    """Test lat/lng pairs are valid coordinates."""
+
+    def test_latitude_in_range(self):
+        for _ in range(20):
+            result = generate_geo({})
+            assert -90 <= result["latitude"] <= 90
+            assert result["lat"] == result["latitude"]
+
+    def test_longitude_in_range(self):
+        for _ in range(20):
+            result = generate_geo({})
+            assert -180 <= result["longitude"] <= 180
+            assert result["lng"] == result["longitude"]
+            assert result["lon"] == result["longitude"]
+
+    def test_lat_lng_are_coherent_pair(self):
+        """lat/latitude and lng/longitude/lon should be identical."""
+        result = generate_geo({})
+        assert result["latitude"] == result["lat"]
+        assert result["longitude"] == result["lng"]
+        assert result["longitude"] == result["lon"]
+
+
+class TestGenerateGeoLocaleAware:
+    """Test geo group uses address locale for coordinate bias."""
+
+    def test_us_locale_biases_coordinates(self):
+        """With en_US locale, coordinates should be near the US."""
+        results = [generate_geo({"_locale": "en_US"}) for _ in range(10)]
+        # US latitude roughly 25-50, longitude roughly -125 to -65
+        for r in results:
+            assert 20 <= r["latitude"] <= 55, f"US lat out of range: {r['latitude']}"
+            assert -130 <= r["longitude"] <= -60, f"US lng out of range: {r['longitude']}"
+
+    def test_france_locale_biases_coordinates(self):
+        """With fr_FR locale, coordinates should be near France."""
+        results = [generate_geo({"_locale": "fr_FR"}) for _ in range(10)]
+        # France latitude roughly 42-51, longitude roughly -5 to 9
+        for r in results:
+            assert 38 <= r["latitude"] <= 55, f"FR lat out of range: {r['latitude']}"
+            assert -10 <= r["longitude"] <= 14, f"FR lng out of range: {r['longitude']}"
+
+    def test_no_locale_generates_random_valid_coordinates(self):
+        result = generate_geo({})
+        assert -90 <= result["latitude"] <= 90
+        assert -180 <= result["longitude"] <= 180

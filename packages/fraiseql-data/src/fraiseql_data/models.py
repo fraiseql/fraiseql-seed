@@ -1,7 +1,12 @@
 """Data models and type definitions."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from fraiseql_data.generators.groups import ColumnGroup
 
 
 @dataclass
@@ -89,8 +94,8 @@ class TableInfo:
     name: str
     columns: list[ColumnInfo]
     foreign_keys: list[ForeignKeyInfo] = field(default_factory=list)
-    multi_unique_constraints: list["MultiColumnUniqueConstraint"] = field(default_factory=list)
-    check_constraints: list["CheckConstraint"] = field(default_factory=list)
+    multi_unique_constraints: list[MultiColumnUniqueConstraint] = field(default_factory=list)
+    check_constraints: list[CheckConstraint] = field(default_factory=list)
 
     @property
     def is_trinity(self) -> bool:
@@ -246,7 +251,7 @@ class Seeds:
         raise AttributeError(f"No table '{name}' in seeds")
 
     @classmethod
-    def from_json(cls, file_path: Any | None = None, json_str: str | None = None) -> "Seeds":
+    def from_json(cls, file_path: Any | None = None, json_str: str | None = None) -> Seeds:
         """
         Import seed data from JSON format with automatic type conversion.
 
@@ -332,7 +337,7 @@ class Seeds:
         return seeds
 
     @classmethod
-    def from_csv(cls, table_name: str, file_path: Any) -> "Seeds":
+    def from_csv(cls, table_name: str, file_path: Any) -> Seeds:
         """
         Import single table from CSV format.
 
@@ -452,3 +457,4 @@ class SeedPlan:
     count: int
     strategy: str = "faker"
     overrides: dict[str, Any] = field(default_factory=dict)
+    groups: list[ColumnGroup] | None = field(default=None)

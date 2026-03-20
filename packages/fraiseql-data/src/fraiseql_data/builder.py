@@ -315,6 +315,7 @@ class SeedBuilder:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> "SeedBuilder":
         """
         Add a table to the seed plan.
@@ -370,6 +371,7 @@ class SeedBuilder:
                 count=count,
                 strategy=strategy,
                 overrides=overrides or {},
+                groups=groups,
             )
         )
         return self
@@ -642,9 +644,14 @@ class SeedBuilder:
                     )
 
         # Detect active groups
-        registry = GroupRegistry()
         column_names = {col.name for col in table_info.columns}
-        active_groups = registry.detect_groups(column_names)
+        if plan.groups is not None:
+            # Explicit groups: use as-is (empty list disables groups)
+            active_groups = plan.groups
+        else:
+            # Auto-detect from built-in registry
+            registry = GroupRegistry()
+            active_groups = registry.detect_groups(column_names)
 
         # Track UNIQUE column values to avoid duplicates
         unique_values: dict[str, set[Any]] = {}
@@ -712,7 +719,50 @@ class SeedBuilder:
 
                 # Use group-generated value if available
                 if col.name in group_values:
-                    row[col.name] = group_values[col.name]
+                    value = group_values[col.name]
+
+                    # Handle UNIQUE constraint on group columns
+                    if col.is_unique and value is not None:
+                        if col.name not in unique_values:
+                            unique_values[col.name] = set()
+
+                        if value in unique_values[col.name]:
+                            # Find the group that owns this column
+                            owning_group = next(g for g in active_groups if col.name in g.fields)
+                            for attempt in range(MAX_UNIQUE_RETRIES):
+                                ctx: dict[str, Any] = {
+                                    c: self._apply_override(v, counter)
+                                    for c, v in plan.overrides.items()
+                                    if c in owning_group.fields
+                                }
+                                # Email suffix fallback after half retries
+                                if col.name == "email" and attempt >= MAX_UNIQUE_RETRIES // 2:
+                                    ctx["_email_suffix"] = attempt
+                                new_values = owning_group.generator(ctx)
+                                value = new_values[col.name]
+                                if value not in unique_values[col.name]:
+                                    # Update group_values for coherence
+                                    group_values.update(
+                                        {
+                                            k: v
+                                            for k, v in new_values.items()
+                                            if k not in plan.overrides
+                                            and k not in check_rules
+                                            and (k in column_names or k.startswith("_"))
+                                        }
+                                    )
+                                    break
+                            else:
+                                raise UniqueConstraintError(
+                                    col.name,
+                                    table_info.name,
+                                    f"Could not generate unique group value "
+                                    f"after {MAX_UNIQUE_RETRIES} attempts",
+                                )
+
+                        unique_values[col.name].add(value)
+
+                    row[col.name] = value
                     continue
 
                 # Handle foreign keys
