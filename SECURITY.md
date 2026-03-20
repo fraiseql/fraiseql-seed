@@ -128,7 +128,7 @@ Download SBOMs from [GitHub Releases](https://github.com/fraiseql/fraiseql-seed/
 - **Quality Gate**: Automated testing (99/99 tests passing, 86% coverage)
 - **Security Scanning**: TruffleHog, Trivy, pip-audit
 - **License Auditing**: Automated GPL detection
-- **Multi-Python**: Tested on Python 3.11, 3.12, 3.13
+- **Multi-Python**: Tested on Python 3.12, 3.13
 
 ## Known Security Considerations
 

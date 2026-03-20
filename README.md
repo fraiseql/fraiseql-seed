@@ -160,7 +160,7 @@ uuid = gen.generate(instance=1)
 [![Security & Compliance](https://github.com/fraiseql/fraiseql-seed/actions/workflows/security-compliance.yml/badge.svg)](https://github.com/fraiseql/fraiseql-seed/actions/workflows/security-compliance.yml)
 [![codecov](https://codecov.io/gh/fraiseql/fraiseql-seed/branch/main/graph/badge.svg)](https://codecov.io/gh/fraiseql/fraiseql-seed)
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
@@ -169,8 +169,8 @@ uuid = gen.generate(instance=1)
 - ✅ **99/99 tests passing** (100% pass rate)
 - ✅ **86% code coverage** (fraiseql-data)
 - ✅ **Zero lint violations** (ruff strict mode)
-- ✅ **Type-safe** (mypy strict for fraiseql-uuid)
-- ✅ **Multi-Python** (3.11, 3.12, 3.13)
+- ✅ **Type-safe** (ty strict for fraiseql-uuid)
+- ✅ **Multi-Python** (3.12, 3.13)
 
 ### Security & Compliance
 
@@ -308,6 +308,23 @@ Auto-detects:
 - `date_of_birth`, `birth_date` → dates
 - ...and 30+ more patterns
 
+### Supported Column Types
+
+fraiseql-data generates appropriate values for all common PostgreSQL types:
+
+| Category | Types |
+|----------|-------|
+| **Text** | `text`, `varchar`, `character varying` |
+| **Integer** | `integer`, `bigint`, `smallint` |
+| **Numeric** | `numeric`, `numeric(p,s)`, `real`, `double precision` |
+| **Boolean** | `boolean`, `bool` |
+| **Date/Time** | `date`, `timestamp`, `timestamptz`, `time`, `timetz`, `interval` |
+| **UUID** | `uuid` |
+| **JSON** | `json`, `jsonb` |
+| **Network** | `inet`, `cidr`, `macaddr`, `macaddr8` |
+| **Binary** | `bytea` |
+| **Arrays** | `integer[]`, `text[]`, `uuid[]`, `ARRAY` |
+
 ### Custom Overrides When Needed
 
 ```python
@@ -404,11 +421,13 @@ No special setup required. Works with:
 
 ### How fraiseql-seed Fits
 
-```python
-from fraiseql_data import SeedBuilder
-
+```bash
 # Build schema with confiture
 confiture build --env test
+```
+
+```python
+from fraiseql_data import SeedBuilder
 
 # Generate test data with auto-dependencies
 builder = SeedBuilder(conn, "public", seed_common="db/")
@@ -481,8 +500,8 @@ This project maintains government-grade quality standards:
 - ✅ 99/99 tests passing
 - ✅ 86% code coverage
 - ✅ Zero lint violations
-- ✅ Type-safe (mypy strict)
-- ✅ Multi-Python (3.11, 3.12, 3.13)
+- ✅ Type-safe (ty strict)
+- ✅ Multi-Python (3.12, 3.13)
 - ✅ Weekly security scans
 - ✅ SBOM with Cosign signing
 
