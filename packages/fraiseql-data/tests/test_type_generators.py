@@ -1,0 +1,178 @@
+"""Tests for type-aware data generators (B1: Type-Aware Generators)."""
+
+import json
+import logging
+import uuid
+from datetime import time, timedelta
+from ipaddress import IPv4Address, IPv4Network
+
+from fraiseql_data.generators.faker_generator import FakerGenerator
+
+
+class TestUUIDGeneration:
+    """Cycle 1: UUID columns generate valid UUIDs."""
+
+    def test_uuid_type_generates_valid_uuid(self):
+        gen = FakerGenerator()
+        value = gen.generate("some_col", "uuid")
+        # Should be a valid UUID string
+        parsed = uuid.UUID(str(value))
+        assert parsed.version == 4
+
+    def test_uuid_not_text(self):
+        gen = FakerGenerator()
+        value = gen.generate("some_col", "uuid")
+        # Should not be random text
+        assert isinstance(str(value), str)
+        uuid.UUID(str(value))  # Should not raise
+
+
+class TestJSONGeneration:
+    """Cycle 2: JSON/JSONB columns generate valid JSON."""
+
+    def test_jsonb_generates_valid_json(self):
+        gen = FakerGenerator()
+        value = gen.generate("metadata", "jsonb")
+        # Should be a valid JSON-serializable object
+        assert isinstance(value, dict)
+        json.dumps(value)  # Should not raise
+
+    def test_json_generates_valid_json(self):
+        gen = FakerGenerator()
+        value = gen.generate("config", "json")
+        assert isinstance(value, dict)
+        json.dumps(value)
+
+    def test_jsonb_has_content(self):
+        gen = FakerGenerator()
+        value = gen.generate("data", "jsonb")
+        assert len(value) > 0
+
+
+class TestBooleanAlias:
+    """Cycle 3: Bool alias maps to boolean handler."""
+
+    def test_bool_alias_generates_boolean(self):
+        gen = FakerGenerator()
+        value = gen.generate("is_active", "bool")
+        assert isinstance(value, bool)
+
+
+class TestTimeAndInterval:
+    """Cycle 4: Time and interval types."""
+
+    def test_time_generates_valid_time(self):
+        gen = FakerGenerator()
+        value = gen.generate("start_time", "time without time zone")
+        assert isinstance(value, time)
+
+    def test_timetz_generates_valid_time(self):
+        gen = FakerGenerator()
+        value = gen.generate("start_time", "time with time zone")
+        assert isinstance(value, (time, str))
+
+    def test_interval_generates_valid_interval(self):
+        gen = FakerGenerator()
+        value = gen.generate("duration", "interval")
+        assert isinstance(value, timedelta)
+
+
+class TestNetworkTypes:
+    """Cycle 5: Network types (inet, cidr, macaddr)."""
+
+    def test_inet_generates_valid_ip(self):
+        gen = FakerGenerator()
+        value = gen.generate("ip_address", "inet")
+        IPv4Address(str(value))  # Should not raise
+
+    def test_cidr_generates_valid_cidr(self):
+        gen = FakerGenerator()
+        value = gen.generate("network", "cidr")
+        IPv4Network(str(value), strict=False)  # Should not raise
+
+    def test_macaddr_generates_valid_mac(self):
+        gen = FakerGenerator()
+        value = gen.generate("mac", "macaddr")
+        parts = str(value).split(":")
+        assert len(parts) == 6
+        for part in parts:
+            int(part, 16)  # Should not raise
+
+    def test_macaddr8_generates_valid_mac(self):
+        gen = FakerGenerator()
+        value = gen.generate("mac", "macaddr8")
+        parts = str(value).split(":")
+        assert len(parts) == 8
+
+
+class TestArrayTypes:
+    """Cycle 6: Array types."""
+
+    def test_integer_array(self):
+        gen = FakerGenerator()
+        value = gen.generate("scores", "integer[]")
+        assert isinstance(value, list)
+        assert all(isinstance(v, int) for v in value)
+
+    def test_text_array(self):
+        gen = FakerGenerator()
+        value = gen.generate("tags", "text[]")
+        assert isinstance(value, list)
+        assert all(isinstance(v, str) for v in value)
+
+    def test_array_format_detection(self):
+        gen = FakerGenerator()
+        # ARRAY keyword variant
+        value = gen.generate("items", "ARRAY")
+        assert isinstance(value, list)
+
+
+class TestByteaType:
+    """Cycle 8: Bytea type."""
+
+    def test_bytea_generates_bytes(self):
+        gen = FakerGenerator()
+        value = gen.generate("data", "bytea")
+        assert isinstance(value, (bytes, memoryview))
+
+    def test_bytea_has_content(self):
+        gen = FakerGenerator()
+        value = gen.generate("payload", "bytea")
+        assert len(value) > 0
+
+
+class TestNumericPrecision:
+    """Cycle 10: Numeric precision."""
+
+    def test_numeric_with_scale_respects_precision(self):
+        gen = FakerGenerator()
+        value = gen.generate("price", "numeric(10,2)")
+        assert isinstance(value, float)
+        # Check scale: no more than 2 decimal places
+        str_val = f"{value:.10f}"
+        decimal_part = str_val.split(".")[1].rstrip("0")
+        assert len(decimal_part) <= 2
+
+    def test_numeric_without_scale_is_float(self):
+        gen = FakerGenerator()
+        value = gen.generate("amount", "numeric")
+        assert isinstance(value, float)
+
+
+class TestUnknownTypeWarning:
+    """Cycle 11: Unknown type warning."""
+
+    def test_unknown_type_emits_warning(self, caplog):
+        gen = FakerGenerator()
+        with caplog.at_level(logging.WARNING):
+            value = gen.generate("weird_col", "some_unknown_custom_type")
+
+        assert value is not None  # Still generates fallback text
+        assert any("some_unknown_custom_type" in r.message for r in caplog.records)
+
+    def test_known_type_no_warning(self, caplog):
+        gen = FakerGenerator()
+        with caplog.at_level(logging.WARNING):
+            gen.generate("col", "integer")
+
+        assert not any("integer" in r.message for r in caplog.records)
