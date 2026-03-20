@@ -172,6 +172,15 @@ seeds = builder.add("tb_user", count=10).execute()
 # email: "john.doe@example.com" (not "column_1_value")
 ```
 
+Numeric columns with precision and scale (`numeric(p,s)`) generate values within bounds:
+
+```python
+# numeric(10,2) → values up to 99,999,999.99
+# numeric(5,3)  → values up to 99.999
+seeds = builder.add("tb_product", count=50).execute()
+# price (numeric(10,2)): 42571.83 (never exceeds column precision)
+```
+
 ### 4. Custom Overrides
 
 Override auto-generation for specific columns:
@@ -189,6 +198,17 @@ seeds = (
     .execute()
 )
 ```
+
+**Override priority:** Overrides take precedence over automatic FK resolution. This enables cross-builder seeding where parent data already exists:
+
+```python
+# Parent data already in database from a previous builder/migration
+builder.add("tb_product", count=50, overrides={
+    "fk_organization": 42,  # Use existing org, skip FK auto-resolution
+})
+```
+
+When all FK columns pointing to a dependency table are overridden, that table can be omitted from the seed plan entirely — validation accepts the overrides as satisfying the dependency.
 
 ## Phase 2 Features (New!)
 
@@ -714,6 +734,8 @@ builder = SeedBuilder(
     validate_seed_common=False  # Skip validation
 )
 ```
+
+**Warning behavior:** When `seed_common` is omitted, a warning is logged once per process to alert you about potential UUID collisions. Pass `validate_seed_common=False` to suppress the warning entirely (useful for ad-hoc scripts and CI fixtures).
 
 #### Self-Documenting Trinity UUIDs
 
