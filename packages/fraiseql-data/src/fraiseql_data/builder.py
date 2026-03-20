@@ -381,9 +381,20 @@ class SeedBuilder:
             ForeignKeyResolutionError: If FK reference cannot be resolved
             ColumnGenerationError: If column data cannot be generated
         """
+        # Build overridden FK map: table -> set of FK column names with overrides
+        overridden_fks: dict[str, set[str]] = {}
+        for plan in self._plan:
+            if plan.overrides:
+                table_info = self.introspector.get_table_info(plan.table)
+                fk_cols_with_override = {
+                    fk.column for fk in table_info.foreign_keys if fk.column in plan.overrides
+                }
+                if fk_cols_with_override:
+                    overridden_fks[plan.table] = fk_cols_with_override
+
         # Validate all dependencies are included in plan
         graph = self.introspector.get_dependency_graph()
-        graph.validate_plan([p.table for p in self._plan])
+        graph.validate_plan([p.table for p in self._plan], overridden_fks)
 
         # Sort plan by dependencies
         sorted_tables = self.introspector.topological_sort()
