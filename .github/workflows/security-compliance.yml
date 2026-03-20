@@ -308,46 +308,26 @@ jobs:
       run: |
         echo "=== Validating Package Metadata ==="
 
-        # Check fraiseql-uuid
-        echo "Checking fraiseql-uuid metadata..."
-        python3 << 'EOF'
-import tomllib
-with open('packages/fraiseql-uuid/pyproject.toml', 'rb') as f:
-    data = tomllib.load(f)
-    project = data.get('project', {})
+        validate_pkg() {
+          local pkg="$1"
+          echo "Checking $pkg metadata..."
+          python3 -c "
+        import tomllib
+        with open('packages/$pkg/pyproject.toml', 'rb') as f:
+            data = tomllib.load(f)
+            project = data.get('project', {})
+            for field in ('name', 'version', 'description', 'license', 'authors'):
+                assert field in project, f'Missing project {field}'
+            print(f'✅ $pkg metadata valid')
+            print(f'   Name: {project[\"name\"]}')
+            print(f'   Version: {project[\"version\"]}')
+            print(f'   License: {project[\"license\"]}')
+        "
+        }
 
-    assert 'name' in project, "Missing project name"
-    assert 'version' in project, "Missing project version"
-    assert 'description' in project, "Missing project description"
-    assert 'license' in project, "Missing project license"
-    assert 'authors' in project, "Missing project authors"
-
-    print(f"✅ fraiseql-uuid metadata valid")
-    print(f"   Name: {project['name']}")
-    print(f"   Version: {project['version']}")
-    print(f"   License: {project['license']}")
-EOF
-
-        # Check fraiseql-data
+        validate_pkg fraiseql-uuid
         echo ""
-        echo "Checking fraiseql-data metadata..."
-        python3 << 'EOF'
-import tomllib
-with open('packages/fraiseql-data/pyproject.toml', 'rb') as f:
-    data = tomllib.load(f)
-    project = data.get('project', {})
-
-    assert 'name' in project, "Missing project name"
-    assert 'version' in project, "Missing project version"
-    assert 'description' in project, "Missing project description"
-    assert 'license' in project, "Missing project license"
-    assert 'authors' in project, "Missing project authors"
-
-    print(f"✅ fraiseql-data metadata valid")
-    print(f"   Name: {project['name']}")
-    print(f"   Version: {project['version']}")
-    print(f"   License: {project['license']}")
-EOF
+        validate_pkg fraiseql-data
 
         echo ""
         echo "✅ All package metadata validated"

@@ -108,49 +108,26 @@ jobs:
     - name: Enhance SBOM with metadata
       run: |
         # Add component metadata to SBOM
-        cat > enhance_sbom.py << 'EOF'
-import json
-import sys
-
-sbom_file = sys.argv[1]
-component_name = sys.argv[2]
-version = sys.argv[3]
-description = sys.argv[4]
-
-with open(sbom_file, 'r') as f:
-    sbom = json.load(f)
-
-# Enhance metadata component
-if 'metadata' in sbom and 'component' in sbom['metadata']:
-    sbom['metadata']['component'].update({
-        'name': component_name,
-        'version': version,
-        'description': description,
-        'type': 'library',
-        'licenses': [{'license': {'id': 'MIT'}}],
-        'externalReferences': [
-            {
-                'type': 'website',
-                'url': 'https://github.com/fraiseql/fraiseql-seed'
-            },
-            {
-                'type': 'vcs',
-                'url': 'https://github.com/fraiseql/fraiseql-seed'
-            },
-            {
-                'type': 'issue-tracker',
-                'url': 'https://github.com/fraiseql/fraiseql-seed/issues'
-            }
-        ]
-    })
-
-with open(sbom_file, 'w') as f:
-    json.dump(sbom, f, indent=2)
-
-print(f"✅ Enhanced SBOM metadata for {component_name} v{version}")
-EOF
-
-        uv run python enhance_sbom.py \
+        python3 -c "
+        import json, sys
+        sbom_file, component_name, version, description = sys.argv[1:5]
+        with open(sbom_file) as f:
+            sbom = json.load(f)
+        if 'metadata' in sbom and 'component' in sbom['metadata']:
+            sbom['metadata']['component'].update({
+                'name': component_name, 'version': version,
+                'description': description, 'type': 'library',
+                'licenses': [{'license': {'id': 'MIT'}}],
+                'externalReferences': [
+                    {'type': 'website', 'url': 'https://github.com/fraiseql/fraiseql-seed'},
+                    {'type': 'vcs', 'url': 'https://github.com/fraiseql/fraiseql-seed'},
+                    {'type': 'issue-tracker', 'url': 'https://github.com/fraiseql/fraiseql-seed/issues'}
+                ]
+            })
+        with open(sbom_file, 'w') as f:
+            json.dump(sbom, f, indent=2)
+        print(f'Enhanced SBOM metadata for {component_name} v{version}')
+        " \
           "${{ steps.metadata.outputs.component_name }}-${{ steps.version.outputs.version }}-sbom.json" \
           "${{ steps.metadata.outputs.component_name }}" \
           "${{ steps.version.outputs.version }}" \
@@ -159,18 +136,18 @@ EOF
     - name: Validate SBOM
       run: |
         echo "=== Validating SBOM Schema ==="
+        SBOM_FILE="${{ steps.metadata.outputs.component_name }}-${{ steps.version.outputs.version }}-sbom.json"
         uv run python -c "
-import json
-sbom_file = '${{ steps.metadata.outputs.component_name }}-${{ steps.version.outputs.version }}-sbom.json'
-with open(sbom_file) as f:
-    sbom = json.load(f)
-    assert sbom['bomFormat'] == 'CycloneDX'
-    assert sbom['specVersion'] == '1.5'
-    assert 'components' in sbom
-    print(f'✅ SBOM validation passed')
-    print(f'   Components: {len(sbom.get(\"components\", []))}')
-    print(f'   Format: CycloneDX {sbom[\"specVersion\"]}')
-"
+        import json, sys
+        with open(sys.argv[1]) as f:
+            sbom = json.load(f)
+            assert sbom['bomFormat'] == 'CycloneDX'
+            assert sbom['specVersion'] == '1.5'
+            assert 'components' in sbom
+            print('SBOM validation passed')
+            print(f'  Components: {len(sbom.get(\"components\", []))}')
+            print(f'  Format: CycloneDX {sbom[\"specVersion\"]}')
+        " "$SBOM_FILE"
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@v3
@@ -206,64 +183,22 @@ with open(sbom_file) as f:
         cp "$SBOM_FILE.sha256" sbom-artifacts/
 
         # Create README for verification
-        cat > sbom-artifacts/README.md << EOF
-# ${{ matrix.package }} SBOM Verification
-
-## Files Included
-
-- \`$SBOM_FILE\` - CycloneDX SBOM (JSON format)
-- \`$SBOM_FILE.sig\` - Cosign signature (keyless)
-- \`$SBOM_FILE.pem\` - Cosign certificate
-- \`$SBOM_FILE.sha256\` - SHA256 checksum
-
-## Verify SBOM Integrity
-
-### 1. Verify SHA256 Checksum
-\`\`\`bash
-sha256sum -c $SBOM_FILE.sha256
-\`\`\`
-
-### 2. Verify Cosign Signature
-\`\`\`bash
-cosign verify-blob \\
-  --signature $SBOM_FILE.sig \\
-  --certificate $SBOM_FILE.pem \\
-  --certificate-identity-regexp "https://github.com/fraiseql/fraiseql-seed" \\
-  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \\
-  $SBOM_FILE
-\`\`\`
-
-### 3. Validate SBOM Schema
-\`\`\`bash
-pip install cyclonedx-bom
-cyclonedx-py validate --input-file $SBOM_FILE
-\`\`\`
-
-## SBOM Compliance
-
-This SBOM complies with global supply chain security standards:
-- 🇺🇸 **US Executive Order 14028** (May 2021) - Software supply chain security
-- 🇪🇺 **EU NIS2 Directive** & **Cyber Resilience Act** - Supply chain transparency
-- 💳 **PCI-DSS 4.0** (Requirement 6.3.2) - Software component inventory
-- 🌐 **ISO 27001:2022** (Control 5.21) - ICT supply chain security
-- **CycloneDX 1.5 Specification** - OWASP SBOM standard
-- **NIST SP 800-161** - Cyber Supply Chain Risk Management
-
-## For Procurement & Security Teams
-
-This SBOM provides:
-1. ✅ Complete dependency inventory
-2. ✅ License compliance information
-3. ✅ Cryptographic integrity verification (SHA256 + Cosign)
-4. ✅ Machine-readable format (CycloneDX JSON)
-5. ✅ Vulnerability database integration (Package URLs)
-
-## Questions?
-
-For SBOM-related questions or procurement inquiries:
-- Repository: https://github.com/fraiseql/fraiseql-seed
-- Issues: https://github.com/fraiseql/fraiseql-seed/issues
-EOF
+        {
+          echo "# SBOM Verification"
+          echo ""
+          echo "## Files"
+          echo "- $SBOM_FILE (CycloneDX JSON)"
+          echo "- $SBOM_FILE.sig (Cosign signature)"
+          echo "- $SBOM_FILE.pem (Cosign certificate)"
+          echo "- $SBOM_FILE.sha256 (SHA256 checksum)"
+          echo ""
+          echo "## Verify"
+          echo "sha256sum -c $SBOM_FILE.sha256"
+          echo "cosign verify-blob --signature $SBOM_FILE.sig --certificate $SBOM_FILE.pem --certificate-identity-regexp https://github.com/fraiseql/fraiseql-seed --certificate-oidc-issuer https://token.actions.githubusercontent.com $SBOM_FILE"
+          echo ""
+          echo "## Compliance"
+          echo "US EO 14028, EU NIS2/CRA, PCI-DSS 4.0, ISO 27001, CycloneDX 1.5, NIST SP 800-161"
+        } > sbom-artifacts/README.md
 
     - name: Upload SBOM artifacts
       uses: actions/upload-artifact@v4
