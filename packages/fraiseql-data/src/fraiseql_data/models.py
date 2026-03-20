@@ -289,14 +289,24 @@ class Seeds:
             for key, value in row_dict.items():
                 if value is None:
                     converted[key] = value
+                elif isinstance(value, dict):
+                    # Already a dict (JSONB) — keep as-is
+                    converted[key] = value
+                elif isinstance(value, list):
+                    # Already a list (array) — keep as-is
+                    converted[key] = value
                 elif isinstance(value, str):
-                    # Try UUID conversion
-                    if len(value) == 36 and value.count("-") == 4:  # noqa: PLR2004
-                        try:
-                            converted[key] = UUID(value)
-                            continue
-                        except ValueError:
-                            pass
+                    # Try UUID conversion via parsing (not heuristic)
+                    try:
+                        converted[key] = UUID(value)
+                        continue
+                    except ValueError:
+                        pass
+
+                    # Try boolean conversion
+                    if value.lower() in ("true", "false"):
+                        converted[key] = value.lower() == "true"
+                        continue
 
                     # Try datetime conversion (ISO format)
                     if "T" in value or len(value) > 18:  # noqa: PLR2004
@@ -309,7 +319,7 @@ class Seeds:
                     # Keep as string
                     converted[key] = value
                 else:
-                    # Keep original type (int, float, etc.)
+                    # Keep original type (int, float, bool, etc.)
                     converted[key] = value
 
             return converted

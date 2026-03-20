@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from psycopg.sql import Literal
+
 from .base import BaseExporter
 
 
@@ -91,16 +93,10 @@ class SQLExporter(BaseExporter):
 
     @staticmethod
     def _format_value(value: Any) -> str:
-        """Format value for SQL INSERT statement.
+        """Format value for SQL INSERT statement using psycopg.sql.Literal.
 
-        This function converts Python values to SQL literals.
-
-        Examples:
-            None → NULL
-            True → TRUE
-            42 → 42
-            "hello" → 'hello'
-            "it's" → 'it''s' (escaped single quote)
+        Delegates all escaping to libpq via psycopg, which correctly handles
+        single quotes, backslashes, null bytes, and all other special characters.
 
         Args:
             value: Python value to format
@@ -108,24 +104,15 @@ class SQLExporter(BaseExporter):
         Returns:
             SQL literal as string
         """
-        # NULL values
         if value is None:
             return "NULL"
 
-        # Boolean values
-        if isinstance(value, bool):
-            return "TRUE" if value else "FALSE"
+        # Convert non-standard types to their string representations for SQL
+        if isinstance(value, bytes):
+            return Literal(value).as_string(None)
+        if isinstance(value, (dict, list)):
+            import json
 
-        # Numeric values (int, float)
-        if isinstance(value, (int, float)):
-            return str(value)
+            return Literal(json.dumps(value)).as_string(None)
 
-        # String values (need escaping and quoting)
-        if isinstance(value, str):
-            # Escape single quotes: "it's" → "it''s"
-            escaped = value.replace("'", "''")
-            return f"'{escaped}'"
-
-        # Default: convert to string and quote
-        # This handles datetime, UUID, etc.
-        return f"'{value!s}'"
+        return Literal(value).as_string(None)
