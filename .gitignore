@@ -56,7 +56,10 @@ dmypy.json
 .ruff_cache/
 
 # uv
-uv.lock
+# uv.lock is committed for reproducible installs
+
+# Development planning
+.phases/
 
 # OS
 .DS_Store

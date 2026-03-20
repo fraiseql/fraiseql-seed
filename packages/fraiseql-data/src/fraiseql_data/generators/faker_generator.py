@@ -159,9 +159,7 @@ class FakerGenerator:
         array_match = self._ARRAY_RE.match(pg_type)
         if array_match:
             base_type = array_match.group(1)
-            element_gen = self._ARRAY_ELEMENT_GENERATORS.get(
-                base_type, lambda: fake.word()
-            )
+            element_gen = self._ARRAY_ELEMENT_GENERATORS.get(base_type, lambda: fake.word())
             return [element_gen() for _ in range(3)]
 
         # Unknown type: warn and fall back to text

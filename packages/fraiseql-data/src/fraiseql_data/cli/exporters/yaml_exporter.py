@@ -39,7 +39,7 @@ class YAMLExporter(BaseExporter):
         self,
         table_name: str,
         rows: list[dict[str, Any]],
-        _schema: str | None = None,
+        schema: str | None = None,  # noqa: ARG002
     ) -> str:
         """Export table as YAML."""
         # Build the output structure

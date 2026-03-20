@@ -776,10 +776,10 @@ def add(
     ...
 ```
 
-Use with mypy for type checking:
+Use with ty for type checking:
 
 ```bash
-uv run mypy your_code.py
+uv run ty check your_code.py
 ```
 
 ---

@@ -155,8 +155,8 @@ uv run pytest packages/fraiseql-data/tests
 
 # Lint and type check
 uv run ruff check packages/
-uv run mypy packages/fraiseql-uuid/src
-uv run mypy packages/fraiseql-data/src
+uv run ty check packages/fraiseql-uuid/src
+uv run ty check packages/fraiseql-data/src
 
 # Build packages
 cd packages/fraiseql-uuid && uv build

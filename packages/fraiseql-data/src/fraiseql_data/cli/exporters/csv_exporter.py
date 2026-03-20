@@ -33,9 +33,9 @@ class CSVExporter(BaseExporter):
 
     def export_table(
         self,
-        _table_name: str,
+        table_name: str,  # noqa: ARG002
         rows: list[dict[str, Any]],
-        _schema: str | None = None,
+        schema: str | None = None,  # noqa: ARG002
     ) -> str:
         """Export table as CSV."""
         # Handle empty table
