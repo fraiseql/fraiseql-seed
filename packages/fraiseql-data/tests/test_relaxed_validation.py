@@ -1,4 +1,4 @@
-"""Tests for relaxed dependency validation (Phase 02).
+"""Tests for relaxed dependency validation.
 
 validate_plan() should skip MissingDependencyError when all FK columns
 referencing a missing table have overrides.
@@ -17,7 +17,7 @@ from psycopg import Connection
 
 
 class TestValidatePlanWithOverrides:
-    """Cycle 1: validate_plan accepts overridden deps."""
+    """validate_plan accepts overridden deps."""
 
     def test_overridden_fk_skips_missing_dep(self):
         """Single FK column to missing dep is overridden — no error."""
@@ -53,7 +53,7 @@ class TestValidatePlanWithOverrides:
 
 
 class TestPartialOverridesStillFail:
-    """Cycle 2: partial overrides still raise."""
+    """Partial overrides still raise."""
 
     def test_partial_override_raises(self):
         """Table has 2 FK columns to same dep, only 1 overridden — error."""
@@ -82,7 +82,7 @@ class TestPartialOverridesStillFail:
 
 
 class TestBuilderIntegration:
-    """Cycle 3: builder passes overridden_fks to validate_plan."""
+    """Builder passes overridden_fks to validate_plan."""
 
     def _make_staging_builder(self):
         """Create a staging builder with parent/child table schemas."""
@@ -144,7 +144,7 @@ class TestBuilderIntegration:
 
 
 class TestCrossBuilderEndToEnd:
-    """Cycle 4: end-to-end cross-builder seeding (Phase 01 + 02 combined)."""
+    """End-to-end cross-builder seeding with override priority and relaxed validation."""
 
     def test_cross_builder_seeding(self, db_conn: Connection, test_schema: str):
         """Seed parent with builder A, then child with builder B using overrides."""

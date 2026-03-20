@@ -49,6 +49,7 @@ class BatchContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> "BatchContext":
         """
         Add table to batch (chainable).
@@ -59,6 +60,7 @@ class BatchContext:
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
+            groups: Column groups (None=auto-detect, []=disable, list=custom)
 
         Returns:
             Self for chaining
@@ -81,6 +83,7 @@ class BatchContext:
                 count=count,
                 strategy=strategy,
                 overrides=overrides or {},
+                groups=groups,
             )
         )
         return self
@@ -147,6 +150,7 @@ class ConditionalContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> BatchContext:
         """
         Add table only if condition is true.
@@ -157,6 +161,7 @@ class ConditionalContext:
             strategy: Generation strategy
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
+            groups: Column groups (None=auto-detect, []=disable, list=custom)
 
         Returns:
             Parent BatchContext for continued chaining
@@ -180,6 +185,7 @@ class ConditionalContext:
                     count=count,
                     strategy=strategy,
                     overrides=overrides or {},
+                    groups=groups,
                 )
             )
 

@@ -153,8 +153,6 @@ class TestGroupRegistryDetection:
         assert "city" in col_to_group
 
 
-# -- Cycle 2: Address Group Generator -----------------------------------------
-
 ADDRESS_FIELDS = {
     "country",
     "state",
@@ -257,8 +255,6 @@ class TestGenerateAddressPooling:
         # With random locale selection, we should see more than 1 country
         assert len(countries) > 1
 
-
-# -- Cycle 3: Person Group Generator ------------------------------------------
 
 PERSON_FIELDS = {"first_name", "last_name", "name", "email"}
 
@@ -372,8 +368,6 @@ class TestGeneratePersonPooling:
             assert "first_name" in result
             assert "email" in result
 
-
-# -- Cycle 6: Geo Group Generator ---------------------------------------------
 
 GEO_FIELDS = {"latitude", "longitude", "lat", "lng", "lon"}
 

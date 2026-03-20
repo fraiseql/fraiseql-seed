@@ -115,9 +115,6 @@ class TestCheckConstraintExclusion:
             assert isinstance(row.city, str) and len(row.city) > 0
 
 
-# -- Cycle 5: Override Precedence and SeedPlan Integration ---------------------
-
-
 class TestOverridePrecedenceOverGroups:
     """Test that overrides on group columns take priority over group values."""
 
@@ -235,9 +232,6 @@ class TestCustomGroups:
                 assert row.sku_prefix == "CL"
             else:
                 raise AssertionError(f"Unexpected category: {row.category}")
-
-
-# -- Cycle 6: UNIQUE Constraints, Partial Groups, Geo Group -------------------
 
 
 class TestPartialGroup:

@@ -1,4 +1,4 @@
-"""Tests for SQL exporter escaping (B4 Cycle 1)."""
+"""Tests for SQL exporter escaping."""
 
 from fraiseql_data.cli.exporters.sql_exporter import SQLExporter
 

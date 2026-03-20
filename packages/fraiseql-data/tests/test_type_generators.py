@@ -1,4 +1,4 @@
-"""Tests for type-aware data generators (B1: Type-Aware Generators)."""
+"""Tests for type-aware data generators."""
 
 import json
 import logging
@@ -13,7 +13,7 @@ from fraiseql_data.models import ColumnInfo, TableInfo
 
 
 class TestUUIDGeneration:
-    """Cycle 1: UUID columns generate valid UUIDs."""
+    """UUID columns generate valid UUIDs."""
 
     def test_uuid_type_generates_valid_uuid(self):
         gen = FakerGenerator()
@@ -31,7 +31,7 @@ class TestUUIDGeneration:
 
 
 class TestJSONGeneration:
-    """Cycle 2: JSON/JSONB columns generate valid JSON."""
+    """JSON/JSONB columns generate valid JSON."""
 
     def test_jsonb_generates_valid_json(self):
         gen = FakerGenerator()
@@ -53,7 +53,7 @@ class TestJSONGeneration:
 
 
 class TestBooleanAlias:
-    """Cycle 3: Bool alias maps to boolean handler."""
+    """Bool alias maps to boolean handler."""
 
     def test_bool_alias_generates_boolean(self):
         gen = FakerGenerator()
@@ -62,7 +62,7 @@ class TestBooleanAlias:
 
 
 class TestTimeAndInterval:
-    """Cycle 4: Time and interval types."""
+    """Time and interval types."""
 
     def test_time_generates_valid_time(self):
         gen = FakerGenerator()
@@ -81,7 +81,7 @@ class TestTimeAndInterval:
 
 
 class TestNetworkTypes:
-    """Cycle 5: Network types (inet, cidr, macaddr)."""
+    """Network types (inet, cidr, macaddr)."""
 
     def test_inet_generates_valid_ip(self):
         gen = FakerGenerator()
@@ -109,7 +109,7 @@ class TestNetworkTypes:
 
 
 class TestArrayTypes:
-    """Cycle 6: Array types."""
+    """Array types."""
 
     def test_integer_array(self):
         gen = FakerGenerator()
@@ -131,7 +131,7 @@ class TestArrayTypes:
 
 
 class TestByteaType:
-    """Cycle 8: Bytea type."""
+    """Bytea type."""
 
     def test_bytea_generates_bytes(self):
         gen = FakerGenerator()
@@ -145,7 +145,7 @@ class TestByteaType:
 
 
 class TestNumericPrecision:
-    """Cycle 10: Numeric precision."""
+    """Numeric precision."""
 
     def test_numeric_with_scale_respects_precision(self):
         gen = FakerGenerator()
@@ -195,7 +195,7 @@ class TestNumericPrecision:
 
 
 class TestUnknownTypeWarning:
-    """Cycle 11: Unknown type warning."""
+    """Unknown type warning."""
 
     def test_unknown_type_emits_warning(self, caplog):
         gen = FakerGenerator()
@@ -214,7 +214,7 @@ class TestUnknownTypeWarning:
 
 
 class TestIdentityAndSerialSkip:
-    """Cycle 9: Identity and serial columns are skipped."""
+    """Identity and serial columns are skipped."""
 
     def test_identity_column_skipped_in_staging(self):
         """GENERATED ALWAYS AS IDENTITY columns should not appear in generated rows."""

@@ -1,8 +1,8 @@
 """Tests for override priority over FK auto-resolution.
 
-Phase 01: These tests exercise _generate_rows directly to verify that
-overrides are applied before FK resolution, independent of the
-validate_plan check (relaxed in Phase 02).
+These tests exercise _generate_rows directly to verify that overrides
+are applied before FK resolution, independent of the validate_plan
+check for relaxed validation.
 """
 
 from fraiseql_data import SeedBuilder
