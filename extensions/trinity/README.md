@@ -4,7 +4,7 @@ UUID to INTEGER Primary Key Transformer for Multi-tenant Data Warehouses
 
 ## Overview
 
-The Trinity extension automates the transformation of UUID-based data (from PrintOptim Forge) into INTEGER primary keys for FraiseQL multi-tenant dimensional data warehouses. It provides atomic, high-performance transformations with built-in multi-tenant isolation and circular dependency detection.
+The Trinity extension automates the transformation of UUID-based data from an upstream application into INTEGER primary keys for FraiseQL multi-tenant dimensional data warehouses. It provides atomic, high-performance transformations with built-in multi-tenant isolation and circular dependency detection.
 
 **Key Features:**
 - Atomic UUID→INTEGER PK allocation per table/tenant combination
@@ -75,7 +75,7 @@ Tracks UUID to INTEGER PK allocations. Primary source of truth for Trinity patte
 
 **Columns:**
 - `table_name TEXT` - Which table (e.g., 'manufacturer', 'model')
-- `uuid_value UUID` - Original UUID from Forge
+- `uuid_value UUID` - Original UUID from upstream application
 - `pk_value BIGINT` - Allocated INTEGER PK
 - `tenant_id UUID` - Multi-tenant isolation key
 - `allocated_at TIMESTAMP` - When allocation occurred (audit trail)
@@ -223,7 +223,7 @@ VALUES
 ## Architecture
 
 ```
-Layer 1: PrintOptim Forge (Python)
+Layer 1: Upstream Application
   └─ Produces UUID-based CSVs
        ↓
 

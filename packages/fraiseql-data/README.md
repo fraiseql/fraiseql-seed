@@ -65,7 +65,7 @@ Schema-aware seed data generation for PostgreSQL with Trinity pattern support.
 fraiseql-data generates realistic test data for PostgreSQL databases by:
 - **Introspecting your schema** to understand tables, columns, and relationships
 - **Respecting foreign key constraints** with automatic dependency resolution
-- **Supporting Trinity pattern** (pk_*, id, identifier) for PrintOptim compatibility
+- **Supporting Trinity pattern** (pk_*, id, identifier) for FraiseQL compatibility
 - **Generating realistic data** using Faker for domain-appropriate values
 - **Handling complex scenarios** like self-referencing tables and UNIQUE constraints
 

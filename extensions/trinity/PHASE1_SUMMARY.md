@@ -10,7 +10,7 @@
 
 ## What We Built
 
-The Foundation layer of the Trinity PostgreSQL Extension - a critical infrastructure component that enables UUID→INTEGER PK transformation for the PrintOptim→FraiseQL data pipeline.
+The Foundation layer of the Trinity PostgreSQL Extension - a critical infrastructure component that enables UUID→INTEGER PK transformation for the FraiseQL data pipeline.
 
 ### Phase 1 Scope
 

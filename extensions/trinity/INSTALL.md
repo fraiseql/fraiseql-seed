@@ -1,6 +1,6 @@
 # Trinity PostgreSQL Extension - Installation Guide
 
-The Trinity extension provides UUID→INTEGER primary key transformation capabilities for PrintOptim Forge → FraiseQL data pipelines.
+The Trinity extension provides UUID→INTEGER primary key transformation capabilities for FraiseQL data pipelines.
 
 ## Table of Contents
 

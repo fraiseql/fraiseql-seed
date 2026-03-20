@@ -1,6 +1,6 @@
 # Trinity PostgreSQL Extension - Usage Guide
 
-This guide provides practical examples and patterns for using the Trinity extension in PrintOptim Forge → FraiseQL data pipelines.
+This guide provides practical examples and patterns for using the Trinity extension in FraiseQL data pipelines.
 
 ## Table of Contents
 

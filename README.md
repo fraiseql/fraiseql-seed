@@ -453,7 +453,6 @@ assert len(response.data.orders) == 100
 
 - **[fraiseql-data Documentation](./packages/fraiseql-data/README.md)** - Full API reference, advanced features
 - **[fraiseql-uuid Documentation](./packages/fraiseql-uuid/README.md)** - Pattern UUID details
-- **[Examples](./examples/)** - Real-world usage examples
 - **[SECURITY.md](./SECURITY.md)** - Security policy and vulnerability reporting
 
 ### Advanced Topics
