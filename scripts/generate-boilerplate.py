@@ -7,11 +7,9 @@ Run this script from the monorepo root: python scripts/generate-boilerplate.py
 """
 
 from pathlib import Path
-from typing import Dict, List
-
 
 # File templates
-TEMPLATES: Dict[str, str] = {
+TEMPLATES: dict[str, str] = {
     # fraiseql-uuid/__init__.py
     "fraiseql_uuid/__init__.py": '''"""
 fraiseql-uuid - Structured UUID Pattern Library
@@ -34,7 +32,6 @@ __all__ = [
     "UUIDValidator",
 ]
 ''',
-
     # fraiseql_uuid/patterns/__init__.py
     "fraiseql_uuid/patterns/__init__.py": '''"""UUID pattern definitions and registry."""
 
@@ -52,7 +49,6 @@ __all__ = [
     "UUIDPatternRegistry",
 ]
 ''',
-
     # fraiseql_uuid/patterns/base.py
     "fraiseql_uuid/patterns/base.py": '''"""Base pattern interface and models."""
 
@@ -121,7 +117,6 @@ class Pattern(ABC):
         """
         pass
 ''',
-
     # fraiseql_uuid/patterns/printoptim.py
     "fraiseql_uuid/patterns/printoptim.py": '''"""PrintOptim UUID pattern implementation."""
 
@@ -180,7 +175,10 @@ class PrintOptimPattern(Pattern):
         if not match:
             raise ValueError(f"Invalid PrintOptim UUID format: {uuid}")
 
-        table_seed, function, scenario, instance = match.groups()[0], match.groups()[2], match.groups()[3], match.groups()[4]
+        table_seed = match.groups()[0]
+        function = match.groups()[2]
+        scenario = match.groups()[3]
+        instance = match.groups()[4]
         table_code = table_seed[:6]
         seed_dir = table_seed[6:8]
 
@@ -199,7 +197,6 @@ class PrintOptimPattern(Pattern):
         """Validate PrintOptim UUID format."""
         return bool(self.PATTERN_REGEX.match(uuid))
 ''',
-
     # fraiseql_uuid/patterns/specql.py
     "fraiseql_uuid/patterns/specql.py": '''"""SpecQL UUID pattern implementation."""
 
@@ -233,7 +230,6 @@ class SpecQLPattern(Pattern):
         """Validate SpecQL UUID format."""
         return bool(self.PATTERN_REGEX.match(uuid))
 ''',
-
     # fraiseql_uuid/patterns/sequential.py
     "fraiseql_uuid/patterns/sequential.py": '''"""Sequential UUID pattern implementation."""
 
@@ -264,7 +260,6 @@ class SequentialPattern(Pattern):
         """Validate sequential UUID format."""
         return bool(self.PATTERN_REGEX.match(uuid))
 ''',
-
     # fraiseql_uuid/patterns/registry.py
     "fraiseql_uuid/patterns/registry.py": '''"""UUID pattern registry."""
 
@@ -330,7 +325,6 @@ class UUIDPatternRegistry:
         from fraiseql_uuid.generator import UUIDGenerator
         raise NotImplementedError("Generator creation not yet implemented")
 ''',
-
     # fraiseql_uuid/generator.py
     "fraiseql_uuid/generator.py": '''"""UUID generator."""
 
@@ -386,7 +380,6 @@ class UUIDGenerator:
             for i in range(count)
         ]
 ''',
-
     # fraiseql_uuid/decoder.py
     "fraiseql_uuid/decoder.py": '''"""UUID decoder."""
 
@@ -415,7 +408,6 @@ class UUIDDecoder:
         """
         return self.pattern.decode(uuid)
 ''',
-
     # fraiseql_uuid/validator.py
     "fraiseql_uuid/validator.py": '''"""UUID validator."""
 
@@ -471,7 +463,6 @@ class UUIDValidator:
 
         return ValidationResult(valid=True)
 ''',
-
     # fraiseql_uuid/detector.py
     "fraiseql_uuid/detector.py": '''"""Pattern detection from existing UUIDs and schemas."""
 
@@ -506,7 +497,6 @@ class PatternDetector:
         # TODO: Implement sample-based pattern detection
         raise NotImplementedError("Sample detection not yet implemented")
 ''',
-
     # fraiseql_uuid/cache.py
     "fraiseql_uuid/cache.py": '''"""UUID generation cache for performance."""
 

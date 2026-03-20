@@ -40,7 +40,7 @@ baseline:
         assert not common.has_explicit_data("tb_organization")
         assert common.get_data("tb_organization") == []
     finally:
-        os.unlink(yaml_path)
+        Path(yaml_path).unlink()
 
 
 def test_seed_common_from_yaml_explicit():
@@ -79,7 +79,7 @@ tb_machine:
         assert len(machine_data) == 1
         assert machine_data[0]["fk_organization"] == 1
     finally:
-        os.unlink(yaml_path)
+        Path(yaml_path).unlink()
 
 
 def test_seed_common_from_json():
@@ -102,7 +102,7 @@ def test_seed_common_from_json():
         assert offsets["tb_organization"] == 5
         assert offsets["tb_machine"] == 10
     finally:
-        os.unlink(json_path)
+        Path(json_path).unlink()
 
 
 def test_seed_common_from_sql():

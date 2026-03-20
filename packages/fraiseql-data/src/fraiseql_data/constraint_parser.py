@@ -46,13 +46,13 @@ class RangeConstraintRule(CheckConstraintRule):
         elif self.operator == "<":
             # Generate value less than threshold
             # Ensure positive values for common use cases
-            if self.value > 1000:
+            if self.value > 1000:  # noqa: PLR2004
                 return random.uniform(1, self.value - 1)
             else:
                 return max(0, self.value - random.uniform(1, 100))
         elif self.operator == "<=":
             # Generate value less than or equal to threshold
-            if self.value > 1000:
+            if self.value > 1000:  # noqa: PLR2004
                 return random.uniform(1, self.value)
             else:
                 return max(0, self.value - random.uniform(0, 100))
@@ -213,7 +213,7 @@ class CheckConstraintParser:
 
     def _parse_range(self, check_clause: str) -> RangeConstraintRule | None:
         """Parse single range constraint (>, >=, <, <=)."""
-        # Pattern: column > value or column >= value
+        # Match range comparisons like "col > 5" or "col >= 10"
         match = re.search(
             r"(\w+)\s*(>|>=|<|<=)\s*(\d+\.?\d*)",
             check_clause,
@@ -242,7 +242,7 @@ class CheckConstraintParser:
 
         # Split by AND (case-insensitive)
         parts = re.split(r"\s+AND\s+", check_clause, flags=re.IGNORECASE)
-        if len(parts) != 2:
+        if len(parts) != 2:  # noqa: PLR2004
             return None
 
         # Parse each part as a range constraint

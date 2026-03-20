@@ -5,10 +5,10 @@ different formats, filters, and error cases.
 """
 
 import json
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from fraiseql_data.cli.main import cli
 
 
@@ -244,7 +244,7 @@ def test_export_to_file(populated_db, db_conn, test_schema, database_url, tmp_pa
     assert output_file.exists()
 
     # Verify file contents
-    with open(output_file) as f:
+    with Path(output_file).open() as f:
         data = json.load(f)
     assert len(data["tb_manufacturer"]) == 5
 

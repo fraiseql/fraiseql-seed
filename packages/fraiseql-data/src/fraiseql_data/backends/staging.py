@@ -1,7 +1,6 @@
 """Staging backend - in-memory backend for testing without database."""
 
 from typing import Any
-from uuid import UUID
 
 from fraiseql_data.models import TableInfo
 
@@ -82,7 +81,7 @@ class StagingBackend:
         self,
         table_info: TableInfo,
         rows: list[dict[str, Any]],
-        bulk: bool = True,
+        bulk: bool = True,  # noqa: ARG002
     ) -> list[dict[str, Any]]:
         """
         Simulate database insert (generate PKs, store in memory).
@@ -115,29 +114,25 @@ class StagingBackend:
                     pk_column = col.name
                     break
 
-            if pk_column:
-                # Check if pk is already provided (Trinity pre-allocated)
-                if pk_column not in complete_row or complete_row[pk_column] is None:
-                    if self._trinity_simulation_enabled:
-                        # Trinity simulation: use UUID to allocate PK deterministically
-                        uuid_value = complete_row.get("id")
-                        if uuid_value is not None:
-                            pk = self.allocate_uuid_pk(
-                                table_name, uuid_value, self._trinity_tenant_id
-                            )
-                            complete_row[pk_column] = pk
-                        else:
-                            # Fallback: sequential (shouldn't happen with Trinity generator)
-                            table_key = (table_name, self._trinity_tenant_id)
-                            if table_key not in self._pk_sequences:
-                                self._pk_sequences[table_key] = 1
-                            pk = self._pk_sequences[table_key]
-                            self._pk_sequences[table_key] += 1
-                            complete_row[pk_column] = pk
+            if pk_column and (pk_column not in complete_row or complete_row[pk_column] is None):
+                if self._trinity_simulation_enabled:
+                    # Trinity simulation: use UUID to allocate PK deterministically
+                    uuid_value = complete_row.get("id")
+                    if uuid_value is not None:
+                        pk = self.allocate_uuid_pk(table_name, uuid_value, self._trinity_tenant_id)
+                        complete_row[pk_column] = pk
                     else:
-                        # Standard mode: sequential allocation
-                        complete_row[pk_column] = self._pk_sequences[table_name]
-                        self._pk_sequences[table_name] += 1
+                        # Fallback: sequential (shouldn't happen with Trinity generator)
+                        table_key = (table_name, self._trinity_tenant_id)
+                        if table_key not in self._pk_sequences:
+                            self._pk_sequences[table_key] = 1
+                        pk = self._pk_sequences[table_key]
+                        self._pk_sequences[table_key] += 1
+                        complete_row[pk_column] = pk
+                else:
+                    # Standard mode: sequential allocation
+                    complete_row[pk_column] = self._pk_sequences[table_name]
+                    self._pk_sequences[table_name] += 1
 
             inserted_rows.append(complete_row)
 

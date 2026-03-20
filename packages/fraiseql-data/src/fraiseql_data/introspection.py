@@ -290,8 +290,7 @@ class SchemaIntrospector:
                 constraint_name = row[0]
                 check_clause = row[1]
                 # Remove "CHECK " prefix from clause if present
-                if check_clause.startswith("CHECK "):
-                    check_clause = check_clause[6:]
+                check_clause = check_clause.removeprefix("CHECK ")
                 constraints.append(
                     CheckConstraint(constraint_name=constraint_name, check_clause=check_clause)
                 )

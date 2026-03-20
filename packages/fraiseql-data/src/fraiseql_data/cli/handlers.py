@@ -71,7 +71,7 @@ def _validate_where_clause(where_clause: str | None) -> str | None:
             )
 
     # Basic length check (very long WHERE clauses might be suspicious)
-    if len(where_clause) > 1000:
+    if len(where_clause) > 1000:  # noqa: PLR2004
         raise CLIError(
             "WHERE clause too long (max 1000 characters)",
             "Please simplify your WHERE condition",
@@ -455,11 +455,10 @@ class ExportHandler:
                         console.print(f"[dim]Fetched {len(rows)} rows so far...[/dim]")
 
                     # Convert batch to dictionaries
-                    for row in batch:
-                        rows.append(dict(zip(columns, row, strict=True)))
+                    rows.extend(dict(zip(columns, row, strict=True)) for row in batch)
 
                     # Safety check: prevent excessive memory usage
-                    if len(rows) > 100000:  # 100K row limit as safety net
+                    if len(rows) > 100000:  # noqa: PLR2004  # 100K row limit as safety net
                         raise CLIError(
                             f"Table '{table}' has too many rows ({len(rows)}+). "
                             "Use --limit to restrict the number of rows.",

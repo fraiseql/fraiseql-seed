@@ -8,7 +8,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from fraiseql_data.cli.config import Config, load_config
 from fraiseql_data.cli.formatters import (
     CsvFormatter,
@@ -122,12 +121,12 @@ default_schema: test_schema
             config_file = Path(tmpdir) / ".fraiseql-data.yaml"
             config_file.write_text("database_url: postgresql://localhost/file_test")
 
-            with patch("fraiseql_data.cli.config.Path.cwd", return_value=Path(tmpdir)):
-                with patch.dict(
-                    os.environ, {"DATABASE_URL": "postgresql://localhost/env_override"}
-                ):
-                    config = load_config()
-                    assert config.get_database_url() == "postgresql://localhost/env_override"
+            with (
+                patch("fraiseql_data.cli.config.Path.cwd", return_value=Path(tmpdir)),
+                patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost/env_override"}),
+            ):
+                config = load_config()
+                assert config.get_database_url() == "postgresql://localhost/env_override"
 
 
 class TestFormatters:
@@ -342,18 +341,20 @@ class TestLogging:
 
     def test_debug_log_file_creation(self):
         """Test that debug mode creates log file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("fraiseql_data.cli.logging.Path.home", return_value=Path(tmpdir)):
-                logger = CLILogger(name="test", debug=True)
-                logger.info("Test message")
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("fraiseql_data.cli.logging.Path.home", return_value=Path(tmpdir)),
+        ):
+            logger = CLILogger(name="test", debug=True)
+            logger.info("Test message")
 
-                # Check log directory created
-                log_dir = Path(tmpdir) / ".fraiseql-data" / "logs"
-                assert log_dir.exists()
+            # Check log directory created
+            log_dir = Path(tmpdir) / ".fraiseql-data" / "logs"
+            assert log_dir.exists()
 
-                # Check log file created
-                log_file = log_dir / "fraiseql-data.log"
-                assert log_file.exists()
+            # Check log file created
+            log_file = log_dir / "fraiseql-data.log"
+            assert log_file.exists()
 
 
 class TestConfigIntegration:

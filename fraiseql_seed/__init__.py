@@ -3,10 +3,8 @@
 # This package provides tools for seeding PostgreSQL databases with realistic
 # test data, with special support for PrintOptim Forge → FraiseQL data pipelines.
 
-import os
 import logging
-from typing import Optional, Dict, Any
-from contextlib import contextmanager
+from typing import Any
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -36,7 +34,7 @@ class ExtensionNotFoundError(FraiseQLSeedError):
     pass
 
 
-def check_extension_availability(extension_name: str, connection=None) -> Dict[str, Any]:
+def check_extension_availability(extension_name: str, _connection=None) -> dict[str, Any]:
     """
     Check if a PostgreSQL extension is available and get its status.
 
@@ -94,7 +92,7 @@ def ensure_extensions_installed(connection=None) -> None:
         )
 
 
-def get_extension_info() -> Dict[str, Dict[str, Any]]:
+def get_extension_info() -> dict[str, dict[str, Any]]:
     """
     Get information about all extensions and their status.
 
@@ -103,7 +101,7 @@ def get_extension_info() -> Dict[str, Dict[str, Any]]:
     """
     extensions_info = {}
 
-    for ext_name in REQUIRED_EXTENSIONS.keys():
+    for ext_name in REQUIRED_EXTENSIONS:
         extensions_info[ext_name] = check_extension_availability(ext_name)
 
     return extensions_info
@@ -117,11 +115,11 @@ logger.info("TrinityTransformer not yet implemented - using extension-only mode"
 
 # Export public API
 __all__ = [
-    "ensure_extensions_installed",
-    "check_extension_availability",
-    "get_extension_info",
     "REQUIRED_EXTENSIONS",
     "TRINITY_AVAILABLE",
-    "FraiseQLSeedError",
     "ExtensionNotFoundError",
+    "FraiseQLSeedError",
+    "check_extension_availability",
+    "ensure_extensions_installed",
+    "get_extension_info",
 ]

@@ -290,7 +290,7 @@ class Seeds:
                     converted[key] = value
                 elif isinstance(value, str):
                     # Try UUID conversion
-                    if len(value) == 36 and value.count("-") == 4:
+                    if len(value) == 36 and value.count("-") == 4:  # noqa: PLR2004
                         try:
                             converted[key] = UUID(value)
                             continue
@@ -298,7 +298,7 @@ class Seeds:
                             pass
 
                     # Try datetime conversion (ISO format)
-                    if "T" in value or len(value) > 18:
+                    if "T" in value or len(value) > 18:  # noqa: PLR2004
                         try:
                             converted[key] = datetime.fromisoformat(value)
                             continue
@@ -345,8 +345,7 @@ class Seeds:
         path = Path(file_path)
         with path.open("r", newline="") as f:
             reader = csv.DictReader(f)
-            for row_dict in reader:
-                rows.append(SeedRow(_data=row_dict))
+            rows.extend(SeedRow(_data=row_dict) for row_dict in reader)
 
         seeds._tables[table_name] = rows
         return seeds

@@ -83,7 +83,7 @@ class TestPatternGenerate:
 
         # UUID v4 format: xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx
         v4_pattern = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$", re.I
+            r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$", re.IGNORECASE
         )
         assert v4_pattern.match(uuid)
 

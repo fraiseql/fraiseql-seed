@@ -77,7 +77,7 @@ class Config:
             return None
 
         try:
-            with open(path) as f:
+            with path.open() as f:
                 data = yaml.safe_load(f)
                 return data if isinstance(data, dict) else {}
         except Exception:

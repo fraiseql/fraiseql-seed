@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import click
 from psycopg import connect
@@ -405,7 +406,7 @@ def export(
         # Write to file or stdout
         if output:
             # Write to file
-            with open(output, "w") as f:
+            with Path(output).open("w") as f:
                 f.write(output_text)
             if not quiet:
                 console.print(f"[green]✓[/green] Exported to {output}")

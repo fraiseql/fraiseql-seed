@@ -14,9 +14,9 @@ __version__ = "0.1.0"
 
 __all__ = [
     "Pattern",
-    "UUIDGenerator",
+    "UUIDCache",
     "UUIDDecoder",
+    "UUIDGenerator",
     "UUIDValidator",
     "ValidationResult",
-    "UUIDCache",
 ]

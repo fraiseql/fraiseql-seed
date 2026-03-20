@@ -17,34 +17,26 @@ from .main import cli
 from .utils import display_error, get_database_url, mask_database_url, sanitize_error_message
 
 __all__ = [
-    # Main CLI
-    "cli",
-    # Config
-    "Config",
-    "load_config",
-    # Errors
     "CLIError",
+    "Config",
     "DataGenerationError",
     "DatabaseConnectionError",
     "DatabaseURLNotProvidedError",
-    "SchemaInspectionError",
-    "TableNotFoundError",
-    # Formatters
-    "format_output",
-    "get_available_formats",
-    "get_formatter",
-    # Handlers
     "GenerateHandler",
     "InspectHandler",
-    "SeedHandler",
-    # Interactive
     "InteractiveSession",
-    # Logging
-    "get_logger",
-    "setup_logging",
-    # Utils
+    "SchemaInspectionError",
+    "SeedHandler",
+    "TableNotFoundError",
+    "cli",
     "display_error",
+    "format_output",
+    "get_available_formats",
     "get_database_url",
+    "get_formatter",
+    "get_logger",
+    "load_config",
     "mask_database_url",
     "sanitize_error_message",
+    "setup_logging",
 ]

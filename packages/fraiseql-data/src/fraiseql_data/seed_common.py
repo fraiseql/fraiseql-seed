@@ -174,7 +174,7 @@ class SeedCommon:
         import yaml
 
         path = Path(path)
-        with open(path) as f:
+        with path.open() as f:
             config = yaml.safe_load(f)
 
         # Handle Format 1: baseline counts
@@ -213,7 +213,7 @@ class SeedCommon:
         import json
 
         path = Path(path)
-        with open(path) as f:
+        with path.open() as f:
             config = json.load(f)
 
         # Handle Format 1: baseline counts

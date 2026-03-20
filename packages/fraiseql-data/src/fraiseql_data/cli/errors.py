@@ -70,7 +70,7 @@ class TableNotFoundError(CLIError):
                 suggestion += f". Did you mean: {', '.join(similar[:3])}?"
             else:
                 suggestion += f". Available tables: {', '.join(available_tables[:5])}"
-                if len(available_tables) > 5:
+                if len(available_tables) > 5:  # noqa: PLR2004
                     suggestion += f" (and {len(available_tables) - 5} more)"
 
         super().__init__(

@@ -87,9 +87,7 @@ class DirectBackend:
         ]
 
         # Check if any pk_* columns are being provided (pre-allocated)
-        has_preallocated_pk = any(
-            col.startswith("pk_") for col in insert_columns
-        )
+        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
 
         inserted_rows = []
 
@@ -105,9 +103,7 @@ class DirectBackend:
 
             # Use OVERRIDING SYSTEM VALUE if inserting pre-allocated pk_* columns
             # Otherwise just normal INSERT
-            override_clause = (
-                " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
-            )
+            override_clause = " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
 
             sql = f"""
                 INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}
@@ -118,8 +114,7 @@ class DirectBackend:
             # Flatten values: [row1_col1, row1_col2, row2_col1, row2_col2, ...]
             values = []
             for row in batch:
-                for col in insert_columns:
-                    values.append(row.get(col))
+                values.extend(row.get(col) for col in insert_columns)
 
             # Execute bulk insert
             with self.conn.cursor() as cur:
@@ -164,9 +159,7 @@ class DirectBackend:
         ]
 
         # Check if any pk_* columns are being provided (pre-allocated)
-        has_preallocated_pk = any(
-            col.startswith("pk_") for col in insert_columns
-        )
+        has_preallocated_pk = any(col.startswith("pk_") for col in insert_columns)
 
         # Build INSERT ... RETURNING statement
         columns_list = ", ".join(insert_columns)
@@ -176,9 +169,7 @@ class DirectBackend:
         all_columns = ", ".join([col.name for col in table_info.columns])
 
         # Use OVERRIDING SYSTEM VALUE if inserting pre-allocated pk_* columns
-        override_clause = (
-            " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
-        )
+        override_clause = " OVERRIDING SYSTEM VALUE" if has_preallocated_pk else ""
 
         sql = f"""
             INSERT INTO {self.schema}.{table_info.name} ({columns_list}){override_clause}

@@ -192,7 +192,7 @@ class TableFormatter(OutputFormatter):
                             values = [str(v) for v in row]
                         output.append("| " + " | ".join(values) + " |")
 
-                    if len(rows) > 10:
+                    if len(rows) > 10:  # noqa: PLR2004
                         output.append(f"\n... and {len(rows) - 10} more rows")
 
                 output.append("")

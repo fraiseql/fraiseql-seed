@@ -30,7 +30,7 @@ class UUIDValidator:
         """
         self.pattern = pattern
 
-    def validate(self, uuid: str, strict: bool = True) -> ValidationResult:
+    def validate(self, uuid: str, strict: bool = True) -> ValidationResult:  # noqa: ARG002
         """Validate a UUID.
 
         Args:

@@ -207,8 +207,10 @@ class SeedBuilder:
                 - SeedCommon instance
                 - None (shows warning, not recommended)
             validate_seed_common: Validate FK references (default: True)
-            trinity_enabled: Enable Trinity extension for deterministic PK allocation (default: False)
-            trinity_tenant_id: Tenant ID for multi-tenant Trinity allocation (optional)
+            trinity_enabled: Enable Trinity extension for deterministic
+                PK allocation (default: False)
+            trinity_tenant_id: Tenant ID for multi-tenant Trinity
+                allocation (optional)
 
         Raises:
             SchemaNotFoundError: If schema doesn't exist (direct backend only)
@@ -218,7 +220,9 @@ class SeedBuilder:
             >>> builder = SeedBuilder(conn, schema="test", seed_common="db/")
             >>>
             >>> # With Trinity extension enabled
-            >>> builder = SeedBuilder(conn, schema="test", trinity_enabled=True, trinity_tenant_id=1)
+            >>> builder = SeedBuilder(
+            ...     conn, schema="test", trinity_enabled=True, trinity_tenant_id=1
+            ... )
             >>>
             >>> # Staging backend (no database)
             >>> builder = SeedBuilder(None, schema="test", backend="staging")

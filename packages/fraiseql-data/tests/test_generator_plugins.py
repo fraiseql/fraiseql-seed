@@ -15,7 +15,7 @@ def test_register_custom_generator(db_conn: Connection, test_schema: str):
 
     # Define custom SKU generator
     class SKUGenerator(BaseGenerator):
-        def generate(self, column_name, pg_type, **context):
+        def generate(self, _column_name, _pg_type, **context):
             counter = context.get("counter", 1)
             return f"SKU-{counter:06d}"
 
@@ -61,7 +61,7 @@ def test_custom_generator_with_context(db_conn: Connection, test_schema: str):
 
     # Define category-aware SKU generator
     class CategorySKUGenerator(BaseGenerator):
-        def generate(self, column_name, pg_type, **context):
+        def generate(self, _column_name, _pg_type, **context):
             instance = context.get("instance", 1)
             row_data = context.get("row_data", {})
             category = row_data.get("category", "GEN")
@@ -113,11 +113,11 @@ def test_list_registered_generators():
 
     # Register two custom generators
     class Gen1(BaseGenerator):
-        def generate(self, column_name, pg_type, **context):
+        def generate(self, _column_name, _pg_type, **_context):
             return "value1"
 
     class Gen2(BaseGenerator):
-        def generate(self, column_name, pg_type, **context):
+        def generate(self, _column_name, _pg_type, **_context):
             return "value2"
 
     register_generator("gen1", Gen1)

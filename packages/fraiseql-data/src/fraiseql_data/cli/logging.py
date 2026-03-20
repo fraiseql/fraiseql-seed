@@ -48,9 +48,7 @@ class CLILogger:
             show_path=self.debug_mode,
         )
         console_handler.setLevel(logging.DEBUG if self.debug_mode else logging.INFO)
-        console_handler.setFormatter(
-            logging.Formatter("%(message)s", datefmt="[%X]")
-        )
+        console_handler.setFormatter(logging.Formatter("%(message)s", datefmt="[%X]"))
         logger.addHandler(console_handler)
 
         # Add file handler if debug mode
@@ -62,9 +60,7 @@ class CLILogger:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             )
             logger.addHandler(file_handler)
 
@@ -181,7 +177,7 @@ def get_logger(debug: bool = False) -> CLILogger:
     Returns:
         CLILogger instance
     """
-    global _logger
+    global _logger  # noqa: PLW0603
     if _logger is None or _logger.debug_mode != debug:
         _logger = CLILogger(debug=debug)
     return _logger

@@ -33,9 +33,9 @@ class CSVExporter(BaseExporter):
 
     def export_table(
         self,
-        table_name: str,
+        _table_name: str,
         rows: list[dict[str, Any]],
-        schema: str | None = None,
+        _schema: str | None = None,
     ) -> str:
         """Export table as CSV."""
         # Handle empty table
@@ -46,8 +46,6 @@ class CSVExporter(BaseExporter):
         output = io.StringIO()
 
         # Get column names from first row
-        # Example: rows[0] = {"id": 1, "name": "Alice"}
-        # fieldnames = ["id", "name"]
         fieldnames = list(rows[0].keys())
 
         # Create CSV writer

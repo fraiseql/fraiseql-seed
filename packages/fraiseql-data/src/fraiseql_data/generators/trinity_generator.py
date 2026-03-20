@@ -84,7 +84,7 @@ class TrinityGenerator:
 
         # Generate identifier
         # Try to derive from 'name' column if it exists
-        if "name" in row_data and row_data["name"]:
+        if row_data.get("name"):
             base = row_data["name"]
             # Simple slugify
             identifier = base.lower().replace(" ", "-").replace("_", "-")

@@ -64,8 +64,8 @@ def test_multi_column_unique_three_columns(db_conn: Connection, test_schema: str
         "tb_transaction",
         count=50,
         overrides={
-            "year": lambda i: 2024,
-            "month": lambda i: (i % 12) + 1,  # 1-12
+            "year": lambda _i: 2024,
+            "month": lambda _i: (_i % 12) + 1,  # 1-12
             "amount": lambda: 100.0,
         },
     ).execute()
@@ -108,8 +108,8 @@ def test_multiple_multi_column_unique_constraints(db_conn: Connection, test_sche
         "tb_order",
         count=30,
         overrides={
-            "year": lambda i: 2024,
-            "month": lambda i: (i % 12) + 1,
+            "year": lambda _i: 2024,
+            "month": lambda _i: (_i % 12) + 1,
         },
     ).execute()
 

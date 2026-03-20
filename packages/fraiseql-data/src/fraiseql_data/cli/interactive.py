@@ -130,7 +130,7 @@ class InteractiveSession:
         self.console.print("\n[bold green]Summary:[/bold green]")
         summary_table = Table(show_header=False, box=None)
         if database:
-            db_display = database[:50] + "..." if len(database) > 50 else database
+            db_display = database[:50] + "..." if len(database) > 50 else database  # noqa: PLR2004
             summary_table.add_row("Database:", db_display)
         else:
             summary_table.add_row("Database:", "From DATABASE_URL or config")
@@ -181,7 +181,7 @@ class InteractiveSession:
         self.console.print("\n[bold green]Summary:[/bold green]")
         summary_table = Table(show_header=False, box=None)
         if database:
-            db_display = database[:50] + "..." if len(database) > 50 else database
+            db_display = database[:50] + "..." if len(database) > 50 else database  # noqa: PLR2004
             summary_table.add_row("Database:", db_display)
         else:
             summary_table.add_row("Database:", "From DATABASE_URL or config")

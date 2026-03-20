@@ -128,4 +128,4 @@ class SQLExporter(BaseExporter):
 
         # Default: convert to string and quote
         # This handles datetime, UUID, etc.
-        return f"'{str(value)}'"
+        return f"'{value!s}'"

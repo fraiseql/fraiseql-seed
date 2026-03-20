@@ -389,6 +389,6 @@ def test_auto_deps_with_export_import(db_conn, test_schema):
     assert len(result.tb_machine) == 5
 
     # Clean up
-    import os
+    from pathlib import Path
 
-    os.unlink(json_path)
+    Path(json_path).unlink()

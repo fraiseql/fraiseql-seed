@@ -1,6 +1,8 @@
 """Test basic auto-dependency resolution functionality."""
 # ruff: noqa: E501
 
+from pathlib import Path
+
 from fraiseql_data import SeedBuilder
 
 
@@ -387,7 +389,7 @@ def test_auto_deps_seed_common_partial_coverage(db_conn, test_schema, caplog):
 
     # Create seed common with only 2 organizations (need 5 total)
     import tempfile
-    import os
+
     from fraiseql_data import SeedBuilder
 
     seed_common_yaml = """
@@ -422,7 +424,7 @@ baseline:
         # Logging verification is secondary to functional verification
 
     finally:
-        os.unlink(seed_common_path)
+        Path(seed_common_path).unlink()
 
 
 def test_auto_deps_false(db_conn, test_schema):

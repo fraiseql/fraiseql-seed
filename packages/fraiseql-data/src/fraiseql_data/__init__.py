@@ -17,12 +17,12 @@ from fraiseql_data.models import SeedRow, Seeds
 __version__ = "0.1.0"
 
 __all__ = [
-    "SeedBuilder",
-    "seed_data",
-    "Seeds",
-    "SeedRow",
     "BaseGenerator",
-    "register_generator",
-    "list_generators",
+    "SeedBuilder",
+    "SeedRow",
+    "Seeds",
     "clear_generators",
+    "list_generators",
+    "register_generator",
+    "seed_data",
 ]

@@ -40,9 +40,7 @@ class TestTrinityStagingSimulation:
         seeds = builder.add("tb_manufacturer", count=5).execute()
 
         # Collect UUIDs and PKs from generated data
-        uuid_to_pk_map = {
-            row.id: row.pk_manufacturer for row in seeds.tb_manufacturer
-        }
+        uuid_to_pk_map = {row.id: row.pk_manufacturer for row in seeds.tb_manufacturer}
 
         # Now generate again with same data - should get same PKs
         builder2 = SeedBuilder(
@@ -55,9 +53,7 @@ class TestTrinityStagingSimulation:
         builder2.set_table_schema("tb_manufacturer", table_info)
         seeds2 = builder2.add("tb_manufacturer", count=5).execute()
 
-        uuid_to_pk_map2 = {
-            row.id: row.pk_manufacturer for row in seeds2.tb_manufacturer
-        }
+        uuid_to_pk_map2 = {row.id: row.pk_manufacturer for row in seeds2.tb_manufacturer}
 
         # Both runs should produce same UUID→PK mapping
         assert uuid_to_pk_map == uuid_to_pk_map2, (
@@ -111,11 +107,7 @@ class TestTrinityStagingSimulation:
         builder.set_table_schema("tb_product", product_info)
 
         # Generate data
-        seeds = (
-            builder.add("tb_manufacturer", count=3)
-            .add("tb_product", count=10)
-            .execute()
-        )
+        seeds = builder.add("tb_manufacturer", count=3).add("tb_product", count=10).execute()
 
         # Verify PKs are deterministic
         manufacturer_pks = [m.pk_manufacturer for m in seeds.tb_manufacturer]
@@ -184,7 +176,6 @@ class TestTrinityStagingSimulation:
             conn=None,
             schema="test",
             backend="staging",
-            # trinity_enabled=False is default
         )
 
         table_info = TableInfo(
@@ -209,7 +200,10 @@ class TestTrinityStagingSimulation:
         assert pks == [1, 2, 3, 4, 5]
 
     def test_trinity_determinism_across_instances(self):
-        """Test Trinity determinism: same UUID always gets same PK (even if name differs due to Faker)."""
+        """Test Trinity determinism: same UUID always gets same PK.
+
+        Even if name differs due to Faker.
+        """
         # First run
         builder1 = SeedBuilder(
             conn=None,
@@ -266,23 +260,21 @@ class TestTrinityGeneratorContext:
 
     def test_trinity_generator_stores_context(self):
         """Test TrinityGenerator correctly stores Trinity context."""
-        from fraiseql_uuid import Pattern
         from fraiseql_data.generators import TrinityGenerator
+        from fraiseql_uuid import Pattern
 
         pattern = Pattern()
         context = {"conn": None, "tenant_id": 1}
 
-        gen = TrinityGenerator(
-            pattern, "tb_test", trinity_context=context
-        )
+        gen = TrinityGenerator(pattern, "tb_test", trinity_context=context)
 
         assert gen.trinity_context == context
         assert gen.trinity_context["tenant_id"] == 1
 
     def test_trinity_generator_without_context(self):
         """Test TrinityGenerator works without Trinity context."""
-        from fraiseql_uuid import Pattern
         from fraiseql_data.generators import TrinityGenerator
+        from fraiseql_uuid import Pattern
 
         pattern = Pattern()
 
@@ -299,8 +291,8 @@ class TestTrinityGeneratorContext:
 
     def test_trinity_generator_with_context_format(self):
         """Test TrinityGenerator output format with context."""
-        from fraiseql_uuid import Pattern
         from fraiseql_data.generators import TrinityGenerator
+        from fraiseql_uuid import Pattern
 
         pattern = Pattern()
 
@@ -358,7 +350,11 @@ class TestTrinityDirectBackendIntegration:
         ]
 
         # Get table info
-        table_info = backend.introspector.get_table_info("tb_test") if hasattr(backend, "introspector") else None
+        table_info = (
+            backend.introspector.get_table_info("tb_test")
+            if hasattr(backend, "introspector")
+            else None
+        )
 
         # For direct test, create TableInfo manually
         table_info = TableInfo(

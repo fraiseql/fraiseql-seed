@@ -1,6 +1,6 @@
 """Faker-based data generator."""
 
-from typing import Any
+from typing import Any, ClassVar
 
 from faker import Faker
 
@@ -22,7 +22,7 @@ class FakerGenerator:
     """
 
     # Column name → Faker method mapping
-    COLUMN_MAPPINGS = {
+    COLUMN_MAPPINGS: ClassVar[dict[str, Any]] = {
         "email": lambda: fake.email(),
         "first_name": lambda: fake.first_name(),
         "last_name": lambda: fake.last_name(),
@@ -43,7 +43,7 @@ class FakerGenerator:
     }
 
     # Type-based fallbacks
-    TYPE_FALLBACKS = {
+    TYPE_FALLBACKS: ClassVar[dict[str, Any]] = {
         "text": lambda: fake.text(max_nb_chars=50),
         "character varying": lambda: fake.text(max_nb_chars=50),
         "varchar": lambda: fake.text(max_nb_chars=50),
@@ -87,5 +87,4 @@ class FakerGenerator:
         if pg_type in self.TYPE_FALLBACKS:
             return self.TYPE_FALLBACKS[pg_type]()
 
-        # Default: text
         return fake.text(max_nb_chars=50)

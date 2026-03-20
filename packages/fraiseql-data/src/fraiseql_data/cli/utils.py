@@ -75,7 +75,7 @@ def sanitize_error_message(error: Exception, database_url: str | None = None) ->
     return message
 
 
-def display_error(error: Exception, exit_code: int = 1) -> None:
+def display_error(error: Exception, _exit_code: int = 1) -> None:
     """Display error message with optional suggestion.
 
     Args:
