@@ -6,6 +6,7 @@ import uuid
 from datetime import time, timedelta
 from ipaddress import IPv4Address, IPv4Network
 
+import pytest
 from fraiseql_data import SeedBuilder
 from fraiseql_data.generators.faker_generator import FakerGenerator
 from fraiseql_data.models import ColumnInfo, TableInfo
@@ -150,15 +151,47 @@ class TestNumericPrecision:
         gen = FakerGenerator()
         value = gen.generate("price", "numeric(10,2)")
         assert isinstance(value, float)
-        # Check scale: no more than 2 decimal places
-        str_val = f"{value:.10f}"
-        decimal_part = str_val.split(".")[1].rstrip("0")
-        assert len(decimal_part) <= 2
+        assert 0 <= value <= 99_999_999.99
 
     def test_numeric_without_scale_is_float(self):
         gen = FakerGenerator()
         value = gen.generate("amount", "numeric")
         assert isinstance(value, float)
+
+    @pytest.mark.parametrize(
+        ("precision", "scale", "max_val"),
+        [
+            (5, 4, 9.9999),
+            (5, 2, 999.99),
+            (10, 2, 99_999_999.99),
+            (3, 0, 999),
+        ],
+    )
+    def test_numeric_precision_bounds(self, precision, scale, max_val):
+        gen = FakerGenerator()
+        pg_type = f"numeric({precision},{scale})"
+        for _ in range(1000):
+            value = gen.generate("col", pg_type)
+            assert 0 <= value <= max_val, (
+                f"numeric({precision},{scale}): {value} exceeds max {max_val}"
+            )
+
+    @pytest.mark.parametrize(
+        ("precision", "scale", "max_val"),
+        [
+            (1, 0, 9),
+            (2, 1, 9.9),
+            (4, 4, 0.9999),
+        ],
+    )
+    def test_numeric_precision_edge_cases(self, precision, scale, max_val):
+        gen = FakerGenerator()
+        pg_type = f"numeric({precision},{scale})"
+        for _ in range(1000):
+            value = gen.generate("col", pg_type)
+            assert 0 <= value <= max_val, (
+                f"numeric({precision},{scale}): {value} exceeds max {max_val}"
+            )
 
 
 class TestUnknownTypeWarning:

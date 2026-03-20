@@ -264,8 +264,9 @@ class FakerGenerator:
         # Check for numeric(precision, scale)
         numeric_match = self._NUMERIC_RE.match(pg_type)
         if numeric_match:
-            _precision, scale = int(numeric_match.group(1)), int(numeric_match.group(2))
-            return round(random.uniform(0, 10_000), scale)
+            precision, scale = int(numeric_match.group(1)), int(numeric_match.group(2))
+            max_val = 10 ** (precision - scale) - 10**-scale
+            return round(random.uniform(0, max_val), scale)
 
         # Check for array types (e.g., "integer[]")
         array_match = self._ARRAY_RE.match(pg_type)
