@@ -1,5 +1,6 @@
 """SeedBuilder API for declarative seed generation."""
 
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -542,6 +543,16 @@ class SeedBuilder:
                 "Use backend='staging' when initializing SeedBuilder."
             )
 
+    @staticmethod
+    def _apply_override(override: Any, counter: int) -> Any:
+        """Apply an override value, calling it if callable."""
+        if callable(override):
+            sig = inspect.signature(override)
+            if len(sig.parameters) > 0:
+                return override(counter)
+            return override()
+        return override
+
     def _generate_rows(
         self,
         table_info: TableInfo,
@@ -650,6 +661,11 @@ class SeedBuilder:
                 if col.name in ("id", "identifier"):
                     continue
 
+                # Check for override (before FK resolution so overrides take priority)
+                if col.name in plan.overrides:
+                    row[col.name] = self._apply_override(plan.overrides[col.name], counter)
+                    continue
+
                 # Handle foreign keys
                 if any(fk.column == col.name for fk in table_info.foreign_keys):
                     fk = next(fk for fk in table_info.foreign_keys if fk.column == col.name)
@@ -676,22 +692,6 @@ class SeedBuilder:
                     # Pick random from generated parent data
                     parent_row = random.choice(generated_data[fk.referenced_table])
                     row[col.name] = parent_row[fk.referenced_column]
-                    continue
-
-                # Check for override
-                if col.name in plan.overrides:
-                    override = plan.overrides[col.name]
-                    if callable(override):
-                        # Check if callable expects instance argument
-                        import inspect
-
-                        sig = inspect.signature(override)
-                        if len(sig.parameters) > 0:
-                            row[col.name] = override(counter)
-                        else:
-                            row[col.name] = override()
-                    else:
-                        row[col.name] = override
                     continue
 
                 # Check if column has auto-satisfiable CHECK constraint
