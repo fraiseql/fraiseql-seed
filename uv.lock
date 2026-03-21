@@ -333,7 +333,7 @@ provides-extras = ["dev", "cli", "confiture"]
 
 [[package]]
 name = "fraiseql-seed"
-version = "0.1.0"
+version = "0.1.1"
 source = { virtual = "." }
 dependencies = [
     { name = "fraiseql-data" },
@@ -382,7 +382,7 @@ docs = [
 
 [[package]]
 name = "fraiseql-uuid"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "packages/fraiseql-uuid" }
 dependencies = [
     { name = "pydantic" },
