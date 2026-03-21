@@ -194,6 +194,27 @@ builder.add("tb_product", count=200, groups=[
 builder.add("tb_address", count=100, groups=[])
 ```
 
+**Generator context keys:**
+
+The `context` dict passed to your generator function includes:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `_instance` | `int` | 1-based row counter (1, 2, ..., N) |
+| `_table_columns` | `frozenset[str]` | All column names of the table being seeded |
+| *(column overrides)* | `Any` | Override values for columns in this group |
+| *(upstream group outputs)* | `Any` | Values from earlier groups in the pipeline |
+
+```python
+def smart_gen(context):
+    row_num = context["_instance"]
+    has_notes = "notes" in context["_table_columns"]
+    return {
+        "label": f"Item #{row_num}",
+        "description": "See notes" if has_notes else "N/A",
+    }
+```
+
 ### Custom Overrides
 
 Override auto-generation for specific columns:

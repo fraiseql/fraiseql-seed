@@ -1,6 +1,6 @@
 {
-  "version": "0.1.2",
-  "commit": "8887f2e",
-  "branch": "fix/numeric-precision-introspection",
-  "timestamp": "2026-03-21T11:46:24Z"
+  "version": "0.1.3",
+  "commit": "9cbacf2",
+  "branch": "feat/generator-context-enrichment",
+  "timestamp": "2026-03-21T16:39:56Z"
 }
