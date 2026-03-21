@@ -526,7 +526,7 @@ baseline:
             uuid_str = str(org.id)
             # Extract instance number from UUID
             # Format: 2a6f3c21-0000-4000-8000-{instance:012d}
-            instance_hex = uuid_str.split("-")[-1]
+            instance_hex = uuid_str.rsplit("-", maxsplit=1)[-1]
             instance = int(instance_hex)
 
             # Should be >= TEST_DATA_START (1,001)
