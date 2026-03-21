@@ -688,6 +688,8 @@ class SeedBuilder:
                         for col_name, val in plan.overrides.items()
                         if col_name in group.fields
                     }
+                    context["_instance"] = counter
+                    context["_table_columns"] = frozenset(column_names)
                     context.update(group_values)
                     values = group.generator(context)
                     group_values.update(
@@ -741,6 +743,8 @@ class SeedBuilder:
                                     for c, v in plan.overrides.items()
                                     if c in owning_group.fields
                                 }
+                                ctx["_instance"] = counter
+                                ctx["_table_columns"] = frozenset(column_names)
                                 # Email suffix fallback after half retries
                                 if col.name == "email" and attempt >= MAX_UNIQUE_RETRIES // 2:
                                     ctx["_email_suffix"] = attempt
