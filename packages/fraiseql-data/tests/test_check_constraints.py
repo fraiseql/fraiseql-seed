@@ -44,7 +44,7 @@ def test_check_constraint_introspection(db_conn: Connection, test_schema: str):
 
 
 def test_check_constraint_warning(db_conn: Connection, test_schema: str, caplog):
-    """Test auto-satisfaction of simple CHECK constraints (Phase 4)."""
+    """Test auto-satisfaction of simple CHECK constraints."""
     # Create table with CHECK constraint
     with db_conn.cursor() as cur:
         cur.execute(

@@ -2,7 +2,7 @@ name: Deploy & Publish
 
 # Branch-triggered deployment pipeline:
 #   dev     → build + test only (no publish)
-#   staging → build + test + publish to TestPyPI (pre-release)
+#   staging → build + test only (no publish)
 #   main    → build + test + publish to PyPI + GitHub Release
 on:
   push:
@@ -135,13 +135,13 @@ jobs:
   # 3. Publish (environment-dependent)
   # ------------------------------------------------------------------
   publish:
-    name: Publish (${{ needs.check-version.outputs.environment }})
+    name: Publish to PyPI
     runs-on: ubuntu-latest
     needs: [check-version, build]
-    if: needs.check-version.outputs.environment != 'development'
+    if: needs.check-version.outputs.environment == 'production'
     environment:
-      name: ${{ needs.check-version.outputs.environment == 'production' && 'pypi' || 'testpypi' }}
-      url: ${{ needs.check-version.outputs.environment == 'production' && 'https://pypi.org/project/fraiseql-data/' || 'https://test.pypi.org/project/fraiseql-data/' }}
+      name: pypi
+      url: https://pypi.org/project/fraiseql-data/
     steps:
       - name: Download fraiseql-uuid dist
         uses: actions/download-artifact@v4
@@ -155,20 +155,16 @@ jobs:
           name: dist-fraiseql-data
           path: dist-data/
 
-      # Publish fraiseql-uuid first (fraiseql-data depends on it)
-      - name: Publish fraiseql-uuid to ${{ needs.check-version.outputs.environment == 'production' && 'PyPI' || 'TestPyPI' }}
+      - name: Publish fraiseql-uuid to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-uuid/
-          repository-url: ${{ needs.check-version.outputs.environment == 'production' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
           skip-existing: true
 
-      # Then publish fraiseql-data
-      - name: Publish fraiseql-data to ${{ needs.check-version.outputs.environment == 'production' && 'PyPI' || 'TestPyPI' }}
+      - name: Publish fraiseql-data to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-data/
-          repository-url: ${{ needs.check-version.outputs.environment == 'production' && 'https://upload.pypi.org/legacy/' || 'https://test.pypi.org/legacy/' }}
           skip-existing: true
 
   # ------------------------------------------------------------------

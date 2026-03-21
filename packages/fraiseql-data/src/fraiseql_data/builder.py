@@ -1,5 +1,6 @@
 """SeedBuilder API for declarative seed generation."""
 
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -17,9 +18,12 @@ from fraiseql_data.exceptions import (
     UniqueConstraintError,
 )
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
+from fraiseql_data.generators.groups import GroupRegistry
 from fraiseql_data.models import SeedPlan, Seeds, TableInfo
 
 logger = logging.getLogger(__name__)
+
+_seed_common_warned = False
 
 # Constants for generation logic
 MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
@@ -45,6 +49,7 @@ class BatchContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> "BatchContext":
         """
         Add table to batch (chainable).
@@ -55,6 +60,7 @@ class BatchContext:
             strategy: Generation strategy (default: "faker")
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
+            groups: Column groups (None=auto-detect, []=disable, list=custom)
 
         Returns:
             Self for chaining
@@ -77,6 +83,7 @@ class BatchContext:
                 count=count,
                 strategy=strategy,
                 overrides=overrides or {},
+                groups=groups,
             )
         )
         return self
@@ -143,6 +150,7 @@ class ConditionalContext:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> BatchContext:
         """
         Add table only if condition is true.
@@ -153,6 +161,7 @@ class ConditionalContext:
             strategy: Generation strategy
             overrides: Column overrides
             auto_deps: Auto-generate FK dependencies
+            groups: Column groups (None=auto-detect, []=disable, list=custom)
 
         Returns:
             Parent BatchContext for continued chaining
@@ -176,6 +185,7 @@ class ConditionalContext:
                     count=count,
                     strategy=strategy,
                     overrides=overrides or {},
+                    groups=groups,
                 )
             )
 
@@ -263,13 +273,16 @@ class SeedBuilder:
         from fraiseql_data.seed_common import SeedCommon, SeedCommonValidationError
 
         if seed_common is None:
-            logger.warning(
-                "No seed common defined. UUID collisions may occur when "
-                "creating multiple SeedBuilder instances.\n"
-                "Recommendation: Define seed common baseline:\n"
-                "  SeedBuilder(..., seed_common='db/')\n"
-                "This warning will become an error in v2.0."
-            )
+            global _seed_common_warned  # noqa: PLW0603
+            if validate_seed_common and not _seed_common_warned:
+                _seed_common_warned = True
+                logger.warning(
+                    "No seed common defined. UUID collisions may occur when "
+                    "creating multiple SeedBuilder instances.\n"
+                    "Recommendation: Define seed common baseline:\n"
+                    "  SeedBuilder(..., seed_common='db/')\n"
+                    "This warning will become an error in v2.0."
+                )
             self._seed_common = SeedCommon(instance_offsets={}, data=None)
         elif isinstance(seed_common, SeedCommon):
             self._seed_common = seed_common
@@ -308,6 +321,7 @@ class SeedBuilder:
         strategy: str = "faker",
         overrides: dict[str, Any] | None = None,
         auto_deps: bool | dict[str, int | dict[str, Any]] = False,
+        groups: list | None = None,
     ) -> "SeedBuilder":
         """
         Add a table to the seed plan.
@@ -363,6 +377,7 @@ class SeedBuilder:
                 count=count,
                 strategy=strategy,
                 overrides=overrides or {},
+                groups=groups,
             )
         )
         return self
@@ -380,9 +395,20 @@ class SeedBuilder:
             ForeignKeyResolutionError: If FK reference cannot be resolved
             ColumnGenerationError: If column data cannot be generated
         """
+        # Build overridden FK map: table -> set of FK column names with overrides
+        overridden_fks: dict[str, set[str]] = {}
+        for plan in self._plan:
+            if plan.overrides:
+                table_info = self.introspector.get_table_info(plan.table)
+                fk_cols_with_override = {
+                    fk.column for fk in table_info.foreign_keys if fk.column in plan.overrides
+                }
+                if fk_cols_with_override:
+                    overridden_fks[plan.table] = fk_cols_with_override
+
         # Validate all dependencies are included in plan
         graph = self.introspector.get_dependency_graph()
-        graph.validate_plan([p.table for p in self._plan])
+        graph.validate_plan([p.table for p in self._plan], overridden_fks)
 
         # Sort plan by dependencies
         sorted_tables = self.introspector.topological_sort()
@@ -542,6 +568,16 @@ class SeedBuilder:
                 "Use backend='staging' when initializing SeedBuilder."
             )
 
+    @staticmethod
+    def _apply_override(override: Any, counter: int) -> Any:
+        """Apply an override value, calling it if callable."""
+        if callable(override):
+            sig = inspect.signature(override)
+            if len(sig.parameters) > 0:
+                return override(counter)
+            return override()
+        return override
+
     def _generate_rows(
         self,
         table_info: TableInfo,
@@ -613,6 +649,16 @@ class SeedBuilder:
                         f"Consider providing overrides for affected columns."
                     )
 
+        # Detect active groups
+        column_names = {col.name for col in table_info.columns}
+        if plan.groups is not None:
+            # Explicit groups: use as-is (empty list disables groups)
+            active_groups = plan.groups
+        else:
+            # Auto-detect from built-in registry
+            registry = GroupRegistry()
+            active_groups = registry.detect_groups(column_names)
+
         # Track UNIQUE column values to avoid duplicates
         unique_values: dict[str, set[Any]] = {}
 
@@ -632,6 +678,28 @@ class SeedBuilder:
         ):
             row: dict[str, Any] = {}
 
+            # Generate group values for this row
+            group_values: dict[str, Any] = {}
+            if active_groups:
+                for group in active_groups:
+                    # Build context: overrides for this group + prior group outputs
+                    context: dict[str, Any] = {
+                        col_name: self._apply_override(val, counter)
+                        for col_name, val in plan.overrides.items()
+                        if col_name in group.fields
+                    }
+                    context.update(group_values)
+                    values = group.generator(context)
+                    group_values.update(
+                        {
+                            k: v
+                            for k, v in values.items()
+                            if k not in plan.overrides
+                            and k not in check_rules
+                            and (k in column_names or k.startswith("_"))
+                        }
+                    )
+
             # Generate data for each column
             for col in table_info.columns:
                 # Skip identity columns (GENERATED ALWAYS/BY DEFAULT AS IDENTITY)
@@ -648,6 +716,59 @@ class SeedBuilder:
 
                 # Skip Trinity columns for now (will add later)
                 if col.name in ("id", "identifier"):
+                    continue
+
+                # Check for override (before FK resolution so overrides take priority)
+                if col.name in plan.overrides:
+                    row[col.name] = self._apply_override(plan.overrides[col.name], counter)
+                    continue
+
+                # Use group-generated value if available
+                if col.name in group_values:
+                    value = group_values[col.name]
+
+                    # Handle UNIQUE constraint on group columns
+                    if col.is_unique and value is not None:
+                        if col.name not in unique_values:
+                            unique_values[col.name] = set()
+
+                        if value in unique_values[col.name]:
+                            # Find the group that owns this column
+                            owning_group = next(g for g in active_groups if col.name in g.fields)
+                            for attempt in range(MAX_UNIQUE_RETRIES):
+                                ctx: dict[str, Any] = {
+                                    c: self._apply_override(v, counter)
+                                    for c, v in plan.overrides.items()
+                                    if c in owning_group.fields
+                                }
+                                # Email suffix fallback after half retries
+                                if col.name == "email" and attempt >= MAX_UNIQUE_RETRIES // 2:
+                                    ctx["_email_suffix"] = attempt
+                                new_values = owning_group.generator(ctx)
+                                value = new_values[col.name]
+                                if value not in unique_values[col.name]:
+                                    # Update group_values for coherence
+                                    group_values.update(
+                                        {
+                                            k: v
+                                            for k, v in new_values.items()
+                                            if k not in plan.overrides
+                                            and k not in check_rules
+                                            and (k in column_names or k.startswith("_"))
+                                        }
+                                    )
+                                    break
+                            else:
+                                raise UniqueConstraintError(
+                                    col.name,
+                                    table_info.name,
+                                    f"Could not generate unique group value "
+                                    f"after {MAX_UNIQUE_RETRIES} attempts",
+                                )
+
+                        unique_values[col.name].add(value)
+
+                    row[col.name] = value
                     continue
 
                 # Handle foreign keys
@@ -676,22 +797,6 @@ class SeedBuilder:
                     # Pick random from generated parent data
                     parent_row = random.choice(generated_data[fk.referenced_table])
                     row[col.name] = parent_row[fk.referenced_column]
-                    continue
-
-                # Check for override
-                if col.name in plan.overrides:
-                    override = plan.overrides[col.name]
-                    if callable(override):
-                        # Check if callable expects instance argument
-                        import inspect
-
-                        sig = inspect.signature(override)
-                        if len(sig.parameters) > 0:
-                            row[col.name] = override(counter)
-                        else:
-                            row[col.name] = override()
-                    else:
-                        row[col.name] = override
                     continue
 
                 # Check if column has auto-satisfiable CHECK constraint

@@ -526,18 +526,79 @@ baseline:
             uuid_str = str(org.id)
             # Extract instance number from UUID
             # Format: 2a6f3c21-0000-4000-8000-{instance:012d}
-            instance_hex = uuid_str.split("-")[-1]
+            instance_hex = uuid_str.rsplit("-", maxsplit=1)[-1]
             instance = int(instance_hex)
 
             # Should be >= TEST_DATA_START (1,001)
             assert instance >= 1001
 
 
+def test_seed_common_warning_fires_once_per_process(db_conn, test_schema, caplog):
+    """Warning fires at most once across multiple SeedBuilder instances."""
+    import logging
+
+    import fraiseql_data.builder as builder_mod
+    from fraiseql_data import SeedBuilder
+
+    # Reset the module-level dedup flag
+    builder_mod._seed_common_warned = False
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            f"""
+            CREATE TABLE {test_schema}.tb_dedup_test (
+                pk_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+                name TEXT NOT NULL
+            )
+        """
+        )
+        db_conn.commit()
+
+    with caplog.at_level(logging.WARNING):
+        SeedBuilder(db_conn, schema=test_schema, seed_common=None)
+        caplog.clear()
+        SeedBuilder(db_conn, schema=test_schema, seed_common=None)
+
+    # Second instance should NOT have logged the warning
+    assert "No seed common defined" not in caplog.text
+
+
+def test_no_warning_when_validate_seed_common_false(db_conn, test_schema, caplog):
+    """No warning when user explicitly passes validate_seed_common=False."""
+    import logging
+
+    from fraiseql_data import SeedBuilder
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            f"""
+            CREATE TABLE {test_schema}.tb_warning_opt_out (
+                pk_id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+                name TEXT NOT NULL
+            )
+        """
+        )
+        db_conn.commit()
+
+    with caplog.at_level(logging.WARNING):
+        SeedBuilder(
+            db_conn,
+            schema=test_schema,
+            seed_common=None,
+            validate_seed_common=False,
+        )
+
+    assert "No seed common defined" not in caplog.text
+
+
 def test_builder_without_seed_common_warning(db_conn, test_schema, caplog):
     """Warn when seed_common=None."""
     import logging
 
+    import fraiseql_data.builder as builder_mod
     from fraiseql_data import SeedBuilder
+
+    builder_mod._seed_common_warned = False
 
     # Create schema
     with db_conn.cursor() as cur:

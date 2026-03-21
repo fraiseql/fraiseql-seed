@@ -378,7 +378,7 @@ class SchemaIntrospector:
             for fk in table.foreign_keys:
                 # Skip self-references (don't add to dependency graph)
                 if not fk.is_self_referencing:
-                    graph.add_dependency(table.name, fk.referenced_table)
+                    graph.add_dependency(table.name, fk.referenced_table, fk_column=fk.column)
 
         self._dependency_graph_cache = graph
         return graph
@@ -458,7 +458,7 @@ class MockIntrospector:
             # Add FK dependencies (skip self-references)
             for fk in table_info.foreign_keys:
                 if not fk.is_self_referencing:
-                    graph.add_dependency(table_name, fk.referenced_table)
+                    graph.add_dependency(table_name, fk.referenced_table, fk_column=fk.column)
 
         return graph
 
