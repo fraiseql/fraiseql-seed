@@ -1,7 +1,7 @@
-"""
-Phase 4 Integration Tests - All features working together.
+"""Integration tests for all features working together.
 
-Simplified integration tests focusing on key workflows.
+Covers export/import roundtrip, batch operations, CHECK constraints,
+and insert_seeds() workflows.
 """
 
 import tempfile

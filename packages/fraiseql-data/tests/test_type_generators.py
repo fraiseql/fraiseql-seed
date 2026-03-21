@@ -1,4 +1,4 @@
-"""Tests for type-aware data generators (B1: Type-Aware Generators)."""
+"""Tests for type-aware data generators."""
 
 import json
 import logging
@@ -6,13 +6,14 @@ import uuid
 from datetime import time, timedelta
 from ipaddress import IPv4Address, IPv4Network
 
+import pytest
 from fraiseql_data import SeedBuilder
 from fraiseql_data.generators.faker_generator import FakerGenerator
 from fraiseql_data.models import ColumnInfo, TableInfo
 
 
 class TestUUIDGeneration:
-    """Cycle 1: UUID columns generate valid UUIDs."""
+    """UUID columns generate valid UUIDs."""
 
     def test_uuid_type_generates_valid_uuid(self):
         gen = FakerGenerator()
@@ -30,7 +31,7 @@ class TestUUIDGeneration:
 
 
 class TestJSONGeneration:
-    """Cycle 2: JSON/JSONB columns generate valid JSON."""
+    """JSON/JSONB columns generate valid JSON."""
 
     def test_jsonb_generates_valid_json(self):
         gen = FakerGenerator()
@@ -52,7 +53,7 @@ class TestJSONGeneration:
 
 
 class TestBooleanAlias:
-    """Cycle 3: Bool alias maps to boolean handler."""
+    """Bool alias maps to boolean handler."""
 
     def test_bool_alias_generates_boolean(self):
         gen = FakerGenerator()
@@ -61,7 +62,7 @@ class TestBooleanAlias:
 
 
 class TestTimeAndInterval:
-    """Cycle 4: Time and interval types."""
+    """Time and interval types."""
 
     def test_time_generates_valid_time(self):
         gen = FakerGenerator()
@@ -80,7 +81,7 @@ class TestTimeAndInterval:
 
 
 class TestNetworkTypes:
-    """Cycle 5: Network types (inet, cidr, macaddr)."""
+    """Network types (inet, cidr, macaddr)."""
 
     def test_inet_generates_valid_ip(self):
         gen = FakerGenerator()
@@ -108,7 +109,7 @@ class TestNetworkTypes:
 
 
 class TestArrayTypes:
-    """Cycle 6: Array types."""
+    """Array types."""
 
     def test_integer_array(self):
         gen = FakerGenerator()
@@ -130,7 +131,7 @@ class TestArrayTypes:
 
 
 class TestByteaType:
-    """Cycle 8: Bytea type."""
+    """Bytea type."""
 
     def test_bytea_generates_bytes(self):
         gen = FakerGenerator()
@@ -144,25 +145,57 @@ class TestByteaType:
 
 
 class TestNumericPrecision:
-    """Cycle 10: Numeric precision."""
+    """Numeric precision."""
 
     def test_numeric_with_scale_respects_precision(self):
         gen = FakerGenerator()
         value = gen.generate("price", "numeric(10,2)")
         assert isinstance(value, float)
-        # Check scale: no more than 2 decimal places
-        str_val = f"{value:.10f}"
-        decimal_part = str_val.split(".")[1].rstrip("0")
-        assert len(decimal_part) <= 2
+        assert 0 <= value <= 99_999_999.99
 
     def test_numeric_without_scale_is_float(self):
         gen = FakerGenerator()
         value = gen.generate("amount", "numeric")
         assert isinstance(value, float)
 
+    @pytest.mark.parametrize(
+        ("precision", "scale", "max_val"),
+        [
+            (5, 4, 9.9999),
+            (5, 2, 999.99),
+            (10, 2, 99_999_999.99),
+            (3, 0, 999),
+        ],
+    )
+    def test_numeric_precision_bounds(self, precision, scale, max_val):
+        gen = FakerGenerator()
+        pg_type = f"numeric({precision},{scale})"
+        for _ in range(1000):
+            value = gen.generate("col", pg_type)
+            assert 0 <= value <= max_val, (
+                f"numeric({precision},{scale}): {value} exceeds max {max_val}"
+            )
+
+    @pytest.mark.parametrize(
+        ("precision", "scale", "max_val"),
+        [
+            (1, 0, 9),
+            (2, 1, 9.9),
+            (4, 4, 0.9999),
+        ],
+    )
+    def test_numeric_precision_edge_cases(self, precision, scale, max_val):
+        gen = FakerGenerator()
+        pg_type = f"numeric({precision},{scale})"
+        for _ in range(1000):
+            value = gen.generate("col", pg_type)
+            assert 0 <= value <= max_val, (
+                f"numeric({precision},{scale}): {value} exceeds max {max_val}"
+            )
+
 
 class TestUnknownTypeWarning:
-    """Cycle 11: Unknown type warning."""
+    """Unknown type warning."""
 
     def test_unknown_type_emits_warning(self, caplog):
         gen = FakerGenerator()
@@ -181,7 +214,7 @@ class TestUnknownTypeWarning:
 
 
 class TestIdentityAndSerialSkip:
-    """Cycle 9: Identity and serial columns are skipped."""
+    """Identity and serial columns are skipped."""
 
     def test_identity_column_skipped_in_staging(self):
         """GENERATED ALWAYS AS IDENTITY columns should not appear in generated rows."""

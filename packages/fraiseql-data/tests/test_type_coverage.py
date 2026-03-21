@@ -1,5 +1,4 @@
-"""
-B3 Cycle 2: Parametrized type generation unit tests.
+"""Parametrized type generation unit tests.
 
 Validates every supported PostgreSQL type produces the correct Python type
 without needing a database connection.

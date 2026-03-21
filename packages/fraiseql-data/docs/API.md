@@ -60,11 +60,11 @@ SeedBuilder(
   - **File path**: `"db/seed_common.yaml"`, `"db/seed_common.json"`
   - **Directory path**: `"db/"` (auto-detects format and environment)
   - **SeedCommon instance**: Pre-loaded baseline object
-  - **None** (default): Shows warning, may cause UUID collisions
+  - **None** (default): Logs a warning once per process about potential UUID collisions
 
 - **`validate_seed_common`** (bool, optional): Validate FK references on load
-  - `True` (default): Validates FK references exist within seed common
-  - `False`: Skip validation (faster but may miss errors)
+  - `True` (default): Validates FK references exist within seed common; logs warning if `seed_common` is None
+  - `False`: Skip validation and suppress the missing-seed-common warning (useful for ad-hoc scripts and CI fixtures)
 
 **Examples:**
 
@@ -130,6 +130,8 @@ add(
   - **Static value**: `{"status": "active"}`
   - **Callable**: `{"price": lambda: random.uniform(10.0, 500.0)}`
   - **Callable with index**: `{"name": lambda i: f"Item {i}"}`
+  - Overrides take priority over automatic FK resolution — an overridden FK column skips auto-resolution entirely
+  - When all FK columns to a dependency table are overridden, that table can be omitted from the seed plan
 
 - **`auto_deps`** (bool | dict, optional): Auto-generate FK dependencies
   - **False** (default): No auto-deps

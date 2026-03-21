@@ -1,4 +1,4 @@
-"""Integration tests for Phase 2 features combined."""
+"""Integration tests for self-reference, UNIQUE constraints, and bulk insert."""
 
 from fraiseql_data import SeedBuilder
 from psycopg import Connection
@@ -13,7 +13,7 @@ def test_all_phase2_features_together(db_conn: Connection, test_schema: str):
     - tb_category: Self-referencing with parent_category FK
     - tb_product: References both, has UNIQUE sku column
     """
-    # Create schema with all Phase 2 features
+    # Create schema with self-reference, UNIQUE, and bulk insert features
     with db_conn.cursor() as cur:
         # Organizations table: UNIQUE constraint + bulk insert
         cur.execute(

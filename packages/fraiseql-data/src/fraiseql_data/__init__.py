@@ -7,6 +7,7 @@ Provides intelligent seed data generation based on PostgreSQL schema introspecti
 from fraiseql_data.builder import SeedBuilder
 from fraiseql_data.decorators import seed_data
 from fraiseql_data.generators.base import BaseGenerator
+from fraiseql_data.generators.groups import ColumnGroup
 from fraiseql_data.generators.registry import (
     clear_generators,
     list_generators,
@@ -18,6 +19,7 @@ __version__ = "0.1.0"
 
 __all__ = [
     "BaseGenerator",
+    "ColumnGroup",
     "SeedBuilder",
     "SeedRow",
     "Seeds",

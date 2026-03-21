@@ -115,24 +115,24 @@ This prevents UUID collisions when creating multiple `SeedBuilder` instances.
 - ✅ You need backward compatibility
 - ✅ You prefer SQL over YAML/JSON
 
-## Migration from Phase 5
+## Migration from `reuse_existing`
 
-Phase 6 replaced the `reuse_existing` parameter with seed common:
+The `reuse_existing` parameter has been replaced by seed common:
 
 ```python
-# ❌ Phase 5 (removed)
+# ❌ Old (removed)
 builder.add("table", count=10, auto_deps=True, reuse_existing=True)
 
-# ✅ Phase 6 (seed common)
+# ✅ Current (seed common)
 builder = SeedBuilder(conn, schema="test", seed_common="db/seed_common.yaml")
 builder.add("table", count=10, auto_deps=True)
 ```
 
 Benefits:
-- ✅ No database queries for reuse (faster)
-- ✅ Deterministic baseline (reproducible tests)
-- ✅ Environment-specific baselines (dev vs staging)
-- ✅ Self-documenting Trinity UUIDs (can identify origin)
+- No database queries for reuse (faster)
+- Deterministic baseline (reproducible tests)
+- Environment-specific baselines (dev vs staging)
+- Self-documenting Trinity UUIDs (can identify origin)
 
 ## Validation
 

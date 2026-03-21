@@ -1,8 +1,8 @@
 """Test data isolation behavior for auto-deps.
 
-Note: The reuse_existing parameter was removed in Phase 6 and replaced
-with the seed common baseline system. Tests for that feature have been
-removed. For UUID collision prevention, use seed common baselines.
+Note: The reuse_existing parameter was removed and replaced with the
+seed common baseline system. For UUID collision prevention, use seed
+common baselines.
 """
 # ruff: noqa: E501
 
