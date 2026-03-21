@@ -72,7 +72,6 @@ def test_staging_to_database_migration(db_conn, test_schema):
 
     # Define table schema manually (matching database but without created_at default)
     # Note: We skip created_at in staging since it can't generate NOW() default
-    # In REFACTOR phase, insert_seeds() will handle this automatically
     table_info = TableInfo(
         name="tb_manufacturer",
         columns=[

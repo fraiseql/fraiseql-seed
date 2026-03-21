@@ -1,9 +1,7 @@
-"""
-B3: Integration tests — INSERT all supported PostgreSQL types into a real database.
+"""Integration tests -- INSERT all supported PostgreSQL types into a real database.
 
 Validates that FakerGenerator produces values PostgreSQL actually accepts
-for every supported type. This is the test that would have caught the
-UUID/JSONB text fallback bugs that motivated Phase B1.
+for every supported type.
 """
 
 import uuid
@@ -133,11 +131,6 @@ def diverse_fk_schema(db_conn: Connection) -> str:
         db_conn.commit()
 
 
-# ---------------------------------------------------------------------------
-# Cycle 1 & 3: All-types INSERT
-# ---------------------------------------------------------------------------
-
-
 class TestAllTypesInsert:
     """Verify SeedBuilder can INSERT rows with every supported PG type."""
 
@@ -245,11 +238,6 @@ class TestAllTypesInsert:
                 assert val is not None
 
 
-# ---------------------------------------------------------------------------
-# Cycle 4: FK chain with diverse types
-# ---------------------------------------------------------------------------
-
-
 class TestDiverseFKInsert:
     """Tables with FKs AND diverse column types must seed correctly."""
 
@@ -278,11 +266,6 @@ class TestDiverseFKInsert:
             assert child.ip_address is not None  # INET
             assert child.duration is not None  # INTERVAL
             assert child.score is not None  # NUMERIC(8,3)
-
-
-# ---------------------------------------------------------------------------
-# Cycle 5: Edge cases
-# ---------------------------------------------------------------------------
 
 
 class TestEdgeCases:

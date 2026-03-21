@@ -1,11 +1,11 @@
-"""Integration tests for Phase 5 auto-dependency resolution with other features.
+"""Integration tests for auto-dependency resolution with other features.
 
 Tests auto-deps integration with:
-- CHECK constraints (Phase 4)
-- Batch operations (Phase 4)
-- Staging backend (Phase 4)
-- Dynamic counts (Phase 4)
-- Self-referencing tables (Phase 2)
+- CHECK constraints
+- Batch operations
+- Staging backend
+- Dynamic counts
+- Self-referencing tables
 """
 # ruff: noqa: E501
 
