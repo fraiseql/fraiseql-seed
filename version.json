@@ -1,6 +1,6 @@
 {
-  "version": "0.1.1",
-  "commit": "ce8e8a9",
-  "branch": "feat/group-leader",
-  "timestamp": "2026-03-20T23:41:17Z"
+  "version": "0.1.2",
+  "commit": "8887f2e",
+  "branch": "fix/numeric-precision-introspection",
+  "timestamp": "2026-03-21T11:46:24Z"
 }
