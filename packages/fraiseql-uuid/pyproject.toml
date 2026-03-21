@@ -2,7 +2,7 @@
 
 [project]
 name = "fraiseql-uuid"
-version = "0.1.1"
+version = "0.1.2"
 description = "Structured UUID pattern library with encode/decode support"
 authors = [
     {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}
