@@ -2,7 +2,7 @@
 
 [project]
 name = "fraiseql-data"
-version = "0.1.1"
+version = "0.1.2"
 description = "Schema-aware seed data generation for PostgreSQL"
 authors = [
     {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}

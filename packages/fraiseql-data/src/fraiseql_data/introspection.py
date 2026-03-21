@@ -111,7 +111,9 @@ class SchemaIntrospector:
                     c.column_default,
                     CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk,
                     COALESCE(c.is_identity, 'NO') as is_identity,
-                    c.udt_name
+                    c.udt_name,
+                    c.numeric_precision,
+                    c.numeric_scale
                 FROM information_schema.columns c
                 LEFT JOIN (
                     SELECT kcu.column_name
@@ -134,7 +136,7 @@ class SchemaIntrospector:
         return [
             ColumnInfo(
                 name=row[0],
-                pg_type=self._resolve_pg_type(row[1], row[6]),
+                pg_type=self._resolve_pg_type(row[1], row[6], row[7], row[8]),
                 is_nullable=row[2] == "YES",
                 default_value=row[3],
                 is_primary_key=row[4],
@@ -166,11 +168,19 @@ class SchemaIntrospector:
     }
 
     @classmethod
-    def _resolve_pg_type(cls, data_type: str, udt_name: str) -> str:
-        """Resolve the effective pg_type, expanding ARRAY with element info."""
+    def _resolve_pg_type(
+        cls,
+        data_type: str,
+        udt_name: str,
+        numeric_precision: int | None = None,
+        numeric_scale: int | None = None,
+    ) -> str:
+        """Resolve the effective pg_type, expanding ARRAY and numeric precision."""
         if data_type == "ARRAY" and udt_name.startswith("_"):
             element_type = cls._UDT_ELEMENT_TYPES.get(udt_name, udt_name.lstrip("_"))
             return f"{element_type}[]"
+        if data_type == "numeric" and numeric_precision is not None:
+            return f"numeric({numeric_precision},{numeric_scale or 0})"
         return data_type
 
     def get_unique_constraints(self, table_name: str) -> set[str]:

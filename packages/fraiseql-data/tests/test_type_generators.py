@@ -194,6 +194,34 @@ class TestNumericPrecision:
             )
 
 
+class TestIntrospectorNumericType:
+    """Introspector resolves numeric(p,s) from precision/scale columns."""
+
+    def test_resolve_pg_type_numeric_with_precision_scale(self):
+        from fraiseql_data.introspection import SchemaIntrospector
+
+        result = SchemaIntrospector._resolve_pg_type("numeric", "numeric", 5, 4)
+        assert result == "numeric(5,4)"
+
+    def test_resolve_pg_type_numeric_without_precision(self):
+        from fraiseql_data.introspection import SchemaIntrospector
+
+        result = SchemaIntrospector._resolve_pg_type("numeric", "numeric", None, None)
+        assert result == "numeric"
+
+    def test_resolve_pg_type_numeric_scale_zero(self):
+        from fraiseql_data.introspection import SchemaIntrospector
+
+        result = SchemaIntrospector._resolve_pg_type("numeric", "numeric", 3, 0)
+        assert result == "numeric(3,0)"
+
+    def test_resolve_pg_type_non_numeric_unchanged(self):
+        from fraiseql_data.introspection import SchemaIntrospector
+
+        result = SchemaIntrospector._resolve_pg_type("integer", "int4", None, None)
+        assert result == "integer"
+
+
 class TestUnknownTypeWarning:
     """Unknown type warning."""
 
