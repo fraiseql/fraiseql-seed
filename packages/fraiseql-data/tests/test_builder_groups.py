@@ -342,6 +342,191 @@ class TestGroupUniqueRetry:
         assert len(emails) == 50
 
 
+class TestInstanceCounter:
+    """Test that _instance is available in generator context."""
+
+    def test_instance_counter_matches_row_number(self):
+        """Generator receives _instance = 1, 2, ..., N for N rows."""
+        captured_instances: list[int] = []
+
+        def capture_gen(ctx):
+            captured_instances.append(ctx["_instance"])
+            return {"category": "test", "sku_prefix": "T"}
+
+        builder = SeedBuilder(conn=None, schema="test", backend="staging")
+        table_info = TableInfo(
+            name="tb_inst",
+            columns=[
+                ColumnInfo(
+                    name="pk_inst",
+                    pg_type="integer",
+                    is_nullable=False,
+                    is_primary_key=True,
+                ),
+                ColumnInfo(name="category", pg_type="text", is_nullable=False),
+                ColumnInfo(name="sku_prefix", pg_type="text", is_nullable=False),
+            ],
+        )
+        builder.set_table_schema("tb_inst", table_info)
+
+        group = ColumnGroup(
+            name="capture",
+            fields=frozenset({"category", "sku_prefix"}),
+            generator=capture_gen,
+        )
+        builder.add("tb_inst", count=5, groups=[group]).execute()
+
+        assert captured_instances == [1, 2, 3, 4, 5]
+
+
+class TestTableColumnsContext:
+    """Test that _table_columns is available in generator context."""
+
+    def test_table_columns_matches_actual_columns(self):
+        """Generator receives _table_columns as a frozenset of table column names."""
+        captured_columns: list[frozenset] = []
+
+        def capture_gen(ctx):
+            captured_columns.append(ctx["_table_columns"])
+            return {"category": "test", "sku_prefix": "T"}
+
+        builder = SeedBuilder(conn=None, schema="test", backend="staging")
+        table_info = TableInfo(
+            name="tb_cols",
+            columns=[
+                ColumnInfo(
+                    name="pk_cols",
+                    pg_type="integer",
+                    is_nullable=False,
+                    is_primary_key=True,
+                ),
+                ColumnInfo(name="category", pg_type="text", is_nullable=False),
+                ColumnInfo(name="sku_prefix", pg_type="text", is_nullable=False),
+                ColumnInfo(name="extra", pg_type="text", is_nullable=True),
+            ],
+        )
+        builder.set_table_schema("tb_cols", table_info)
+
+        group = ColumnGroup(
+            name="capture",
+            fields=frozenset({"category", "sku_prefix"}),
+            generator=capture_gen,
+        )
+        builder.add("tb_cols", count=2, groups=[group]).execute()
+
+        expected = frozenset({"pk_cols", "category", "sku_prefix", "extra"})
+        assert all(cols == expected for cols in captured_columns)
+
+    def test_different_tables_get_different_columns(self):
+        """Two tables sharing a group get their own _table_columns."""
+        captured: dict[str, frozenset] = {}
+
+        def capture_gen(ctx):
+            # Store by _instance to avoid overwrite
+            return {"category": "test", "sku_prefix": "T"}
+
+        def gen_a(ctx):
+            captured["a"] = ctx["_table_columns"]
+            return capture_gen(ctx)
+
+        def gen_b(ctx):
+            captured["b"] = ctx["_table_columns"]
+            return capture_gen(ctx)
+
+        builder = SeedBuilder(conn=None, schema="test", backend="staging")
+
+        table_a = TableInfo(
+            name="tb_a",
+            columns=[
+                ColumnInfo(name="pk_a", pg_type="integer", is_nullable=False, is_primary_key=True),
+                ColumnInfo(name="category", pg_type="text", is_nullable=False),
+                ColumnInfo(name="sku_prefix", pg_type="text", is_nullable=False),
+            ],
+        )
+        table_b = TableInfo(
+            name="tb_b",
+            columns=[
+                ColumnInfo(name="pk_b", pg_type="integer", is_nullable=False, is_primary_key=True),
+                ColumnInfo(name="category", pg_type="text", is_nullable=False),
+                ColumnInfo(name="sku_prefix", pg_type="text", is_nullable=False),
+                ColumnInfo(name="notes", pg_type="text", is_nullable=True),
+            ],
+        )
+        builder.set_table_schema("tb_a", table_a)
+        builder.set_table_schema("tb_b", table_b)
+
+        group_a = ColumnGroup(
+            name="ga",
+            fields=frozenset({"category", "sku_prefix"}),
+            generator=gen_a,
+        )
+        group_b = ColumnGroup(
+            name="gb",
+            fields=frozenset({"category", "sku_prefix"}),
+            generator=gen_b,
+        )
+
+        builder.add("tb_a", count=1, groups=[group_a])
+        builder.add("tb_b", count=1, groups=[group_b])
+        builder.execute()
+
+        assert captured["a"] == frozenset({"pk_a", "category", "sku_prefix"})
+        assert captured["b"] == frozenset({"pk_b", "category", "sku_prefix", "notes"})
+
+
+class TestInstanceCounterInUniqueRetry:
+    """Test that _instance and _table_columns are present in UNIQUE retry context."""
+
+    def test_retry_context_has_instance_and_columns(self):
+        """Force a collision so the retry path runs, verify context keys."""
+        call_count = 0
+        retry_instances: list[int] = []
+        retry_columns: list[frozenset] = []
+
+        def colliding_gen(ctx):
+            nonlocal call_count
+            call_count += 1
+            if "_instance" in ctx:
+                retry_instances.append(ctx["_instance"])
+            if "_table_columns" in ctx:
+                retry_columns.append(ctx["_table_columns"])
+            # First call for a row returns "dupe@test.com", retries return unique
+            if call_count <= 2:
+                return {"first_name": "A", "last_name": "B", "email": "dupe@test.com"}
+            return {"first_name": "A", "last_name": "B", "email": f"unique{call_count}@test.com"}
+
+        builder = SeedBuilder(conn=None, schema="test", backend="staging")
+        table_info = TableInfo(
+            name="tb_retry",
+            columns=[
+                ColumnInfo(
+                    name="pk_retry",
+                    pg_type="integer",
+                    is_nullable=False,
+                    is_primary_key=True,
+                ),
+                ColumnInfo(name="first_name", pg_type="text", is_nullable=False),
+                ColumnInfo(name="last_name", pg_type="text", is_nullable=False),
+                ColumnInfo(name="email", pg_type="text", is_nullable=False, is_unique=True),
+            ],
+        )
+        builder.set_table_schema("tb_retry", table_info)
+
+        group = ColumnGroup(
+            name="person",
+            fields=frozenset({"first_name", "last_name", "email"}),
+            generator=colliding_gen,
+        )
+        builder.add("tb_retry", count=2, groups=[group]).execute()
+
+        # At least one retry happened — verify _instance was present in retry context
+        assert len(retry_instances) > 2, "Expected retries to have occurred"
+        # All retry _instance values for row 2 should be 2
+        assert all(i in (1, 2) for i in retry_instances)
+        expected_cols = frozenset({"pk_retry", "first_name", "last_name", "email"})
+        assert all(c == expected_cols for c in retry_columns)
+
+
 class TestGeoGroupInBuilder:
     """Test geo group integration in builder."""
 
