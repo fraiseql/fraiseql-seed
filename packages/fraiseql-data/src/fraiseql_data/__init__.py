@@ -13,9 +13,9 @@ from fraiseql_data.generators.registry import (
     list_generators,
     register_generator,
 )
-from fraiseql_data.models import SeedRow, Seeds
+from fraiseql_data.models import SeedRow, Seeds, ValidationResult
 
-__version__ = "0.1.0"
+__version__ = "0.1.4"
 
 __all__ = [
     "BaseGenerator",
@@ -23,6 +23,7 @@ __all__ = [
     "SeedBuilder",
     "SeedRow",
     "Seeds",
+    "ValidationResult",
     "clear_generators",
     "list_generators",
     "register_generator",

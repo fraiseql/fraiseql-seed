@@ -13,6 +13,8 @@ class DependencyGraph:
         self._tables: set[str] = set()
         # table -> dep -> set of FK column names that create this dependency
         self._fk_columns: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+        # table -> set of external (cross-schema) references like "schema.table"
+        self._external_deps: dict[str, set[str]] = defaultdict(set)
 
     def add_table(self, table: str) -> None:
         """Add a table to the graph."""
@@ -34,6 +36,18 @@ class DependencyGraph:
         self._graph[table].add(depends_on)
         if fk_column is not None:
             self._fk_columns[table][depends_on].add(fk_column)
+
+    def add_external_dependency(self, table: str, external_ref: str) -> None:
+        """Register an external (cross-schema) dependency.
+
+        External dependencies are not included in the graph and are assumed
+        to already exist in the database.
+
+        Args:
+            table: Table that has the FK.
+            external_ref: Qualified reference like "other_schema.parent_table".
+        """
+        self._external_deps[table].add(external_ref)
 
     def get_dependencies(self, table: str) -> list[str]:
         """Get all tables that this table depends on."""

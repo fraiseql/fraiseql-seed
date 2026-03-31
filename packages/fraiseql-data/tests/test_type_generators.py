@@ -194,6 +194,61 @@ class TestNumericPrecision:
             )
 
 
+class TestShortVarcharHeuristics:
+    """Column-name heuristics for common short-varchar patterns."""
+
+    def test_lang_generates_iso_code(self):
+        gen = FakerGenerator()
+        for _ in range(20):
+            value = gen.generate("lang", "character varying", max_length=2)
+            assert len(value) == 2
+
+    def test_language_generates_iso_code(self):
+        gen = FakerGenerator()
+        value = gen.generate("language", "character varying")
+        assert len(value) == 2
+
+    def test_locale_generates_posix_locale(self):
+        gen = FakerGenerator()
+        for _ in range(20):
+            value = gen.generate("locale", "character varying", max_length=10)
+            assert "_" in value
+            assert len(value) <= 10
+
+    def test_domain_tld_generates_tld(self):
+        gen = FakerGenerator()
+        value = gen.generate("domain_tld", "character varying", max_length=10)
+        assert value.startswith(".")
+        assert len(value) <= 10
+
+    def test_tld_generates_tld(self):
+        gen = FakerGenerator()
+        value = gen.generate("tld", "varchar")
+        assert value.startswith(".")
+
+    def test_mobile_phone_suffix_match(self):
+        gen = FakerGenerator()
+        value = gen.generate("mobile_phone", "character varying")
+        assert isinstance(value, str)
+        assert len(value) > 0
+
+    def test_office_phone_suffix_match(self):
+        gen = FakerGenerator()
+        value = gen.generate("office_phone", "character varying")
+        assert isinstance(value, str)
+
+    def test_contact_email_suffix_match(self):
+        gen = FakerGenerator()
+        value = gen.generate("contact_email", "character varying")
+        assert isinstance(value, str)
+        assert "@" in value
+
+    def test_exact_phone_still_works(self):
+        gen = FakerGenerator()
+        value = gen.generate("phone", "text")
+        assert isinstance(value, str)
+
+
 class TestIntrospectorNumericType:
     """Introspector resolves numeric(p,s) from precision/scale columns."""
 
@@ -239,6 +294,125 @@ class TestUnknownTypeWarning:
             gen.generate("col", "integer")
 
         assert not any("integer" in r.message for r in caplog.records)
+
+
+class TestVarcharLengthConstraints:
+    """Varchar length constraints are respected."""
+
+    def test_max_length_truncates_text(self):
+        gen = FakerGenerator()
+        for _ in range(50):
+            value = gen.generate("description", "character varying", max_length=10)
+            assert isinstance(value, str)
+            assert len(value) <= 10
+
+    def test_short_varchar_2(self):
+        gen = FakerGenerator()
+        for _ in range(50):
+            value = gen.generate("lang", "character varying", max_length=2)
+            assert len(value) <= 2
+
+    def test_no_max_length_no_truncation(self):
+        gen = FakerGenerator()
+        value = gen.generate("description", "character varying")
+        assert isinstance(value, str)
+
+    def test_max_length_on_column_name_mapping(self):
+        gen = FakerGenerator()
+        for _ in range(50):
+            value = gen.generate("email", "character varying", max_length=15)
+            assert len(value) <= 15
+
+    def test_max_length_does_not_affect_non_string(self):
+        gen = FakerGenerator()
+        value = gen.generate("count", "integer", max_length=5)
+        assert isinstance(value, int)
+
+
+class TestUserDefinedTypes:
+    """USER-DEFINED types generate valid values."""
+
+    def test_ltree_generates_dotted_path(self):
+        gen = FakerGenerator()
+        value = gen.generate("path", "ltree")
+        assert isinstance(value, str)
+        assert "." in value
+
+    def test_citext_generates_text(self):
+        gen = FakerGenerator()
+        value = gen.generate("label", "citext")
+        assert isinstance(value, str)
+        assert len(value) > 0
+
+    def test_hstore_generates_keyvalue(self):
+        gen = FakerGenerator()
+        value = gen.generate("metadata", "hstore")
+        assert isinstance(value, str)
+        assert "=>" in value
+
+    def test_custom_udt_registry(self):
+        FakerGenerator.register_udt_generator("my_custom_type", lambda: "custom_value")
+        gen = FakerGenerator()
+        assert gen.generate("col", "my_custom_type") == "custom_value"
+        # Cleanup
+        del FakerGenerator._custom_udt_generators["my_custom_type"]
+
+    def test_custom_udt_overrides_fallback(self):
+        FakerGenerator.register_udt_generator("exotic_type", lambda: 42)
+        gen = FakerGenerator()
+        assert gen.generate("col", "exotic_type") == 42
+        del FakerGenerator._custom_udt_generators["exotic_type"]
+
+    def test_resolve_pg_type_user_defined_returns_udt_name(self):
+        from fraiseql_data.introspection import SchemaIntrospector
+
+        assert SchemaIntrospector._resolve_pg_type("USER-DEFINED", "ltree") == "ltree"
+        assert SchemaIntrospector._resolve_pg_type("USER-DEFINED", "citext") == "citext"
+        assert SchemaIntrospector._resolve_pg_type("USER-DEFINED", "hstore") == "hstore"
+
+
+class TestSoftDeleteColumns:
+    """Soft-delete columns default to None when nullable."""
+
+    def test_deleted_at_nullable_returns_none(self):
+        gen = FakerGenerator()
+        value = gen.generate("deleted_at", "timestamp with time zone", is_nullable=True)
+        assert value is None
+
+    def test_deleted_at_not_nullable_generates_value(self):
+        gen = FakerGenerator()
+        value = gen.generate("deleted_at", "timestamp with time zone", is_nullable=False)
+        assert value is not None
+
+    def test_soft_deleted_at_nullable_returns_none(self):
+        gen = FakerGenerator()
+        value = gen.generate("soft_deleted_at", "timestamptz", is_nullable=True)
+        assert value is None
+
+    def test_removed_at_nullable_returns_none(self):
+        gen = FakerGenerator()
+        value = gen.generate("removed_at", "timestamp without time zone", is_nullable=True)
+        assert value is None
+
+    def test_archived_at_nullable_returns_none(self):
+        gen = FakerGenerator()
+        value = gen.generate("archived_at", "timestamptz", is_nullable=True)
+        assert value is None
+
+    def test_custom_suffix_deleted_at(self):
+        gen = FakerGenerator()
+        value = gen.generate("user_deleted_at", "timestamptz", is_nullable=True)
+        assert value is None
+
+    def test_created_at_not_affected(self):
+        gen = FakerGenerator()
+        value = gen.generate("created_at", "timestamptz", is_nullable=True)
+        assert value is not None
+
+    def test_updated_at_not_affected(self):
+        gen = FakerGenerator()
+        value = gen.generate("updated_at", "timestamp with time zone", is_nullable=True)
+        assert value is not None
 
 
 class TestIdentityAndSerialSkip:

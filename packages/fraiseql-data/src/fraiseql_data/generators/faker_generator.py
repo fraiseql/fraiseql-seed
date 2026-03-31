@@ -178,6 +178,28 @@ class FakerGenerator:
         "url": _pool_url,
         "description": _pool_text_200,
         "bio": _pool_text_300,
+        # Short-varchar friendly mappings
+        "lang": lambda: random.choice(["en", "fr", "de", "es", "nl", "it", "pt"]),
+        "language": lambda: random.choice(["en", "fr", "de", "es", "nl", "it", "pt"]),
+        "locale": lambda: random.choice(
+            [
+                "en_US",
+                "fr_FR",
+                "de_DE",
+                "es_ES",
+                "nl_NL",
+                "it_IT",
+                "pt_BR",
+            ]
+        ),
+        "domain_tld": lambda: random.choice([".com", ".fr", ".de", ".nl", ".io"]),
+        "tld": lambda: random.choice([".com", ".fr", ".de", ".nl", ".io"]),
+    }
+
+    # Suffix patterns: column names ending with these get the mapped generator
+    _COLUMN_SUFFIX_MAPPINGS: ClassVar[dict[str, Any]] = {
+        "_phone": _pool_phone,
+        "_email": _pool_email,
     }
 
     # Type-based fallbacks (fast paths where possible)
@@ -214,6 +236,12 @@ class FakerGenerator:
         "bytea": _fast_bytea,
         # Array types (generic fallback)
         "ARRAY": lambda: [_pool_word() for _ in range(3)],
+        # Common USER-DEFINED types (resolved via udt_name)
+        "ltree": lambda: ".".join(fake.words(nb=random.randint(2, 4))),
+        "citext": _pool_text_50,
+        "hstore": lambda: (
+            f'"key1"=>"val{random.randint(1, 999)}", "key2"=>"val{random.randint(1, 999)}"'
+        ),
     }
 
     # Regex for numeric(precision, scale)
@@ -221,6 +249,27 @@ class FakerGenerator:
 
     # Regex for array types (e.g., "integer[]", "text[]")
     _ARRAY_RE = re.compile(r"^(.+)\[\]$")
+
+    # Soft-delete column name patterns — nullable timestamps matching these return None
+    _SOFT_DELETE_NAMES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "deleted_at",
+            "soft_deleted_at",
+            "removed_at",
+            "archived_at",
+        }
+    )
+
+    _SOFT_DELETE_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "timestamp without time zone",
+            "timestamp with time zone",
+            "timestamptz",
+        }
+    )
+
+    # Pluggable UDT registry for user-registered generators
+    _custom_udt_generators: ClassVar[dict[str, Any]] = {}
 
     # Base type generators for array element generation
     _ARRAY_ELEMENT_GENERATORS: ClassVar[dict[str, Any]] = {
@@ -234,7 +283,27 @@ class FakerGenerator:
         "boolean": _fast_bool,
     }
 
-    def generate(self, column_name: str, pg_type: str) -> Any:
+    @classmethod
+    def register_udt_generator(cls, udt_name: str, generator: Any) -> None:
+        """Register a custom generator for a USER-DEFINED PostgreSQL type.
+
+        Args:
+            udt_name: The UDT name as reported by PostgreSQL (e.g., 'ltree').
+            generator: A callable that returns a value for the type.
+
+        Example:
+            >>> FakerGenerator.register_udt_generator("ltree", lambda: "root.node_1")
+        """
+        cls._custom_udt_generators[udt_name] = generator
+
+    def generate(
+        self,
+        column_name: str,
+        pg_type: str,
+        *,
+        max_length: int | None = None,
+        is_nullable: bool = False,
+    ) -> Any:
         """
         Generate data for a column based on name and type.
 
@@ -253,32 +322,54 @@ class FakerGenerator:
             >>> gen.generate('created_at', 'timestamptz')
             datetime(2024, 1, 15, 10, 30, 0)
         """
-        # Try column name mapping first
+        # Soft-delete heuristic: nullable timestamp columns with deletion names → None
+        if (
+            is_nullable
+            and pg_type in self._SOFT_DELETE_TYPES
+            and (column_name in self._SOFT_DELETE_NAMES or column_name.endswith("_deleted_at"))
+        ):
+            return None
+
+        # Try column name mapping first (exact match)
         if column_name in self.COLUMN_MAPPINGS:
-            return self.COLUMN_MAPPINGS[column_name]()
-
+            value = self.COLUMN_MAPPINGS[column_name]()
+        # Try suffix-based column name matching (e.g., mobile_phone → phone)
+        elif suffix_gen := next(
+            (
+                gen
+                for suffix, gen in self._COLUMN_SUFFIX_MAPPINGS.items()
+                if column_name.endswith(suffix)
+            ),
+            None,
+        ):
+            value = suffix_gen()
         # Fall back to type-based generation
-        if pg_type in self.TYPE_FALLBACKS:
-            return self.TYPE_FALLBACKS[pg_type]()
-
+        elif pg_type in self.TYPE_FALLBACKS:
+            value = self.TYPE_FALLBACKS[pg_type]()
         # Check for numeric(precision, scale)
-        numeric_match = self._NUMERIC_RE.match(pg_type)
-        if numeric_match:
+        elif numeric_match := self._NUMERIC_RE.match(pg_type):
             precision, scale = int(numeric_match.group(1)), int(numeric_match.group(2))
             max_val = 10 ** (precision - scale) - 10**-scale
             return round(random.uniform(0, max_val), scale)
-
         # Check for array types (e.g., "integer[]")
-        array_match = self._ARRAY_RE.match(pg_type)
-        if array_match:
+        elif array_match := self._ARRAY_RE.match(pg_type):
             base_type = array_match.group(1)
             element_gen = self._ARRAY_ELEMENT_GENERATORS.get(base_type, _pool_word)
             return [element_gen() for _ in range(3)]
+        # Check custom UDT registry
+        elif pg_type in self._custom_udt_generators:
+            value = self._custom_udt_generators[pg_type]()
+        else:
+            # Unknown type: warn and fall back to text
+            logger.warning(
+                "Unknown PostgreSQL type '%s' for column '%s', falling back to text",
+                pg_type,
+                column_name,
+            )
+            value = _pool_text_50()
 
-        # Unknown type: warn and fall back to text
-        logger.warning(
-            "Unknown PostgreSQL type '%s' for column '%s', falling back to text",
-            pg_type,
-            column_name,
-        )
-        return _pool_text_50()
+        # Truncate text values to respect varchar length constraints
+        if max_length is not None and isinstance(value, str) and len(value) > max_length:
+            value = value[:max_length]
+
+        return value
