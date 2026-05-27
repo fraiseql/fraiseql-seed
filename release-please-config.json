@@ -22,11 +22,13 @@
   "packages": {
     "packages/fraiseql-uuid": {
       "package-name": "fraiseql-uuid",
-      "component": "fraiseql-uuid"
+      "component": "fraiseql-uuid",
+      "last-release-sha": "c79bc28f65f4a52042e692fbec6fc57621385e2c"
     },
     "packages/fraiseql-data": {
       "package-name": "fraiseql-data",
-      "component": "fraiseql-data"
+      "component": "fraiseql-data",
+      "last-release-sha": "c79bc28f65f4a52042e692fbec6fc57621385e2c"
     }
   }
 }
