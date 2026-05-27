@@ -1,24 +1,9 @@
-# fraiseql-seed - Monorepo Root Configuration
-# This is a workspace root that coordinates multiple packages
+# fraiseql-seed - Monorepo workspace root.
+#
+# Intentionally has no [project] table — this is a uv workspace marker,
+# not a publishable package. Per-package metadata and versions live in
+# packages/*/pyproject.toml and are managed by release-please.
 
-[project]
-name = "fraiseql-seed"
-version = "0.1.4"
-description = "FraiseQL Seed - UUID patterns and data generation for PostgreSQL"
-authors = [
-    {name = "Lionel Hamayon", email = "lionel.hamayon@evolution-digitale.fr"}
-]
-readme = "README.md"
-license = {text = "MIT"}
-requires-python = ">=3.11"
-
-# Include workspace packages for development
-dependencies = [
-    "fraiseql-uuid",
-    "fraiseql-data",
-]
-
-# This is a workspace root, not a publishable package
 [tool.uv]
 managed = true
 
