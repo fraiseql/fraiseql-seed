@@ -78,8 +78,8 @@ class AutoDependencyResolver:
 
             # Visit dependencies first (depth-first)
             for fk in fks:
-                # Skip self-referencing FKs
-                if fk.referenced_table != current_table:
+                # Skip self-referencing and cross-schema FKs
+                if fk.referenced_table != current_table and fk.referenced_schema is None:
                     visit(fk.referenced_table)
 
             # Add current table after dependencies (post-order)
