@@ -15,7 +15,7 @@ from fraiseql_data.generators.registry import (
 )
 from fraiseql_data.models import SeedRow, Seeds, ValidationResult
 
-__version__ = "0.1.4"
+__version__ = "0.2.0"
 
 __all__ = [
     "BaseGenerator",
