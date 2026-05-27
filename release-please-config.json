@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "python",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "separate-pull-requests": true,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "draft": false,
+  "prerelease": false,
+  "changelog-sections": [
+    {"type": "feat", "section": "Features"},
+    {"type": "fix", "section": "Bug Fixes"},
+    {"type": "perf", "section": "Performance"},
+    {"type": "refactor", "section": "Refactors"},
+    {"type": "docs", "section": "Documentation", "hidden": false},
+    {"type": "test", "section": "Tests", "hidden": true},
+    {"type": "chore", "section": "Chores", "hidden": true},
+    {"type": "ci", "section": "CI", "hidden": true},
+    {"type": "build", "section": "Build", "hidden": true}
+  ],
+  "packages": {
+    "packages/fraiseql-uuid": {
+      "package-name": "fraiseql-uuid",
+      "component": "fraiseql-uuid"
+    },
+    "packages/fraiseql-data": {
+      "package-name": "fraiseql-data",
+      "component": "fraiseql-data"
+    }
+  }
+}

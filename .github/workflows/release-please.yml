@@ -1,0 +1,33 @@
+name: release-please
+
+# Maintains per-package release PRs based on Conventional Commits.
+# When a release PR is merged, tags + a GitHub Release are created
+# (e.g. fraiseql-uuid-v0.1.4), which triggers deploy.yml to publish to PyPI.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write       # create tags, releases, commit manifest updates
+  pull-requests: write  # open/update release PRs
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          # MUST be a PAT or GitHub App token, NOT the default GITHUB_TOKEN.
+          # GitHub deliberately does not trigger workflows from events created
+          # by GITHUB_TOKEN — using it here would mean release-please's PRs
+          # silently skip quality-gate.yml. The fine-grained PAT stored in
+          # RELEASE_PLEASE_TOKEN runs as a human user, so its PRs do trigger
+          # the full quality-gate suite.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
