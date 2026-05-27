@@ -113,7 +113,8 @@ class SchemaIntrospector:
                     COALESCE(c.is_identity, 'NO') as is_identity,
                     c.udt_name,
                     c.numeric_precision,
-                    c.numeric_scale
+                    c.numeric_scale,
+                    c.character_maximum_length
                 FROM information_schema.columns c
                 LEFT JOIN (
                     SELECT kcu.column_name
@@ -142,6 +143,7 @@ class SchemaIntrospector:
                 is_primary_key=row[4],
                 is_unique=row[0] in unique_columns,
                 is_identity=row[5] == "YES",
+                max_length=row[9],
             )
             for row in rows
         ]
@@ -181,6 +183,8 @@ class SchemaIntrospector:
             return f"{element_type}[]"
         if data_type == "numeric" and numeric_precision is not None:
             return f"numeric({numeric_precision},{numeric_scale or 0})"
+        if data_type == "USER-DEFINED":
+            return udt_name
         return data_type
 
     def get_unique_constraints(self, table_name: str) -> set[str]:
@@ -349,14 +353,14 @@ class SchemaIntrospector:
                 SELECT
                     kcu.column_name,
                     ccu.table_name AS foreign_table_name,
-                    ccu.column_name AS foreign_column_name
+                    ccu.column_name AS foreign_column_name,
+                    ccu.table_schema AS foreign_table_schema
                 FROM information_schema.table_constraints AS tc
                 JOIN information_schema.key_column_usage AS kcu
                   ON tc.constraint_name = kcu.constraint_name
                   AND tc.table_schema = kcu.table_schema
                 JOIN information_schema.constraint_column_usage AS ccu
                   ON ccu.constraint_name = tc.constraint_name
-                  AND ccu.table_schema = tc.table_schema
                 WHERE tc.constraint_type = 'FOREIGN KEY'
                   AND tc.table_schema = %s
                   AND tc.table_name = %s
@@ -370,7 +374,8 @@ class SchemaIntrospector:
                 column=row[0],
                 referenced_table=row[1],
                 referenced_column=row[2],
-                is_self_referencing=row[1] == table_name,
+                referenced_schema=row[3] if row[3] != self.schema else None,
+                is_self_referencing=row[1] == table_name and row[3] == self.schema,
             )
             for row in rows
         ]
@@ -386,8 +391,15 @@ class SchemaIntrospector:
         for table in tables:
             graph.add_table(table.name)
             for fk in table.foreign_keys:
-                # Skip self-references (don't add to dependency graph)
-                if not fk.is_self_referencing:
+                if fk.is_self_referencing:
+                    continue
+                if fk.referenced_schema is not None:
+                    # Cross-schema FK: register as external, don't add graph edge
+                    graph.add_external_dependency(
+                        table.name,
+                        f"{fk.referenced_schema}.{fk.referenced_table}",
+                    )
+                else:
                     graph.add_dependency(table.name, fk.referenced_table, fk_column=fk.column)
 
         self._dependency_graph_cache = graph
@@ -465,12 +477,23 @@ class MockIntrospector:
             # Add table
             graph.add_table(table_name)
 
-            # Add FK dependencies (skip self-references)
+            # Add FK dependencies (skip self-references and cross-schema)
             for fk in table_info.foreign_keys:
-                if not fk.is_self_referencing:
+                if fk.is_self_referencing:
+                    continue
+                if fk.referenced_schema is not None:
+                    graph.add_external_dependency(
+                        table_name,
+                        f"{fk.referenced_schema}.{fk.referenced_table}",
+                    )
+                else:
                     graph.add_dependency(table_name, fk.referenced_table, fk_column=fk.column)
 
         return graph
+
+    def get_tables(self) -> list[TableInfo]:
+        """Get all registered tables."""
+        return list(self._schemas.values())
 
     def topological_sort(self) -> list[str]:
         """

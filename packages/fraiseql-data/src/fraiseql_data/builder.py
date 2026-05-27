@@ -11,19 +11,19 @@ from psycopg import Connection
 # Note: Backend and introspector imports moved to __init__ for lazy loading
 from fraiseql_data.auto_deps import AutoDependencyResolver
 from fraiseql_data.exceptions import (
+    CircularDependencyError,
     ColumnGenerationError,
     ForeignKeyResolutionError,
+    MissingDependencyError,
     MultiColumnUniqueConstraintError,
     SelfReferenceError,
     UniqueConstraintError,
 )
 from fraiseql_data.generators import FakerGenerator, TrinityGenerator
 from fraiseql_data.generators.groups import GroupRegistry
-from fraiseql_data.models import SeedPlan, Seeds, TableInfo
+from fraiseql_data.models import SeedPlan, Seeds, TableInfo, ValidationResult
 
 logger = logging.getLogger(__name__)
-
-_seed_common_warned = False
 
 # Constants for generation logic
 MAX_UNIQUE_RETRIES = 10  # Maximum attempts to generate unique value
@@ -216,8 +216,10 @@ class SeedBuilder:
                 - Path to YAML/JSON file
                 - Path to directory (auto-detects format and environment)
                 - SeedCommon instance
-                - None (shows warning, not recommended)
-            validate_seed_common: Validate FK references (default: True)
+                - None (empty baseline, fine for simple use cases)
+            validate_seed_common: Validate FK references in provided
+                seed_common files (default: True). Has no effect when
+                seed_common is None.
             trinity_enabled: Enable Trinity extension for deterministic
                 PK allocation (default: False)
             trinity_tenant_id: Tenant ID for multi-tenant Trinity
@@ -273,16 +275,6 @@ class SeedBuilder:
         from fraiseql_data.seed_common import SeedCommon, SeedCommonValidationError
 
         if seed_common is None:
-            global _seed_common_warned  # noqa: PLW0603
-            if validate_seed_common and not _seed_common_warned:
-                _seed_common_warned = True
-                logger.warning(
-                    "No seed common defined. UUID collisions may occur when "
-                    "creating multiple SeedBuilder instances.\n"
-                    "Recommendation: Define seed common baseline:\n"
-                    "  SeedBuilder(..., seed_common='db/')\n"
-                    "This warning will become an error in v2.0."
-                )
             self._seed_common = SeedCommon(instance_offsets={}, data=None)
         elif isinstance(seed_common, SeedCommon):
             self._seed_common = seed_common
@@ -381,6 +373,76 @@ class SeedBuilder:
             )
         )
         return self
+
+    def validate(self) -> ValidationResult:
+        """
+        Validate the current seed plan without executing.
+
+        Checks that all FK dependencies are satisfied (or overridden)
+        and that the dependency graph has no circular dependencies.
+
+        Returns:
+            ValidationResult with is_valid, errors, and plan_summary
+
+        Example:
+            >>> result = builder.validate()
+            >>> if not result.is_valid:
+            ...     for err in result.errors:
+            ...         print(err)
+        """
+        errors: list[str] = []
+
+        # Build overridden FK map
+        overridden_fks: dict[str, set[str]] = {}
+        for plan in self._plan:
+            if plan.overrides:
+                try:
+                    table_info = self.introspector.get_table_info(plan.table)
+                except Exception as e:
+                    errors.append(str(e))
+                    continue
+                fk_cols_with_override = {
+                    fk.column for fk in table_info.foreign_keys if fk.column in plan.overrides
+                }
+                if fk_cols_with_override:
+                    overridden_fks[plan.table] = fk_cols_with_override
+
+        # Validate dependencies
+        try:
+            graph = self.introspector.get_dependency_graph()
+            graph.validate_plan([p.table for p in self._plan], overridden_fks)
+        except (
+            MissingDependencyError,
+            CircularDependencyError,
+        ) as e:
+            errors.append(str(e))
+
+        # Build plan summary in dependency order
+        plan_summary: list[dict[str, Any]] = []
+        try:
+            sorted_tables = self.introspector.topological_sort()
+            plan_by_table = {p.table: p for p in self._plan}
+            for table in sorted_tables:
+                if table in plan_by_table:
+                    p = plan_by_table[table]
+                    plan_summary.append(
+                        {
+                            "table": p.table,
+                            "count": p.count,
+                            "strategy": p.strategy,
+                        }
+                    )
+        except CircularDependencyError:
+            # Already captured above; provide unsorted summary
+            plan_summary.extend(
+                {"table": p.table, "count": p.count, "strategy": p.strategy} for p in self._plan
+            )
+
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            plan_summary=plan_summary,
+        )
 
     def execute(self) -> Seeds:
         """
@@ -542,6 +604,51 @@ class SeedBuilder:
         """
         return BatchContext(self)
 
+    def seed_all(
+        self,
+        *,
+        default_count: int = 5,
+        counts: dict[str, int] | None = None,
+        overrides: dict[str, dict[str, Any]] | None = None,
+        exclude: set[str] | list[str] | None = None,
+    ) -> Seeds:
+        """
+        Auto-discover all tables, sort by dependencies, and seed.
+
+        Args:
+            default_count: Default row count per table (default: 5)
+            counts: Per-table count overrides
+            overrides: Per-table column overrides
+            exclude: Tables to skip (e.g. audit/migration tables)
+
+        Returns:
+            Seeds with generated data for all tables
+
+        Example:
+            >>> seeds = builder.seed_all(
+            ...     default_count=10,
+            ...     counts={"tb_order": 100},
+            ...     exclude={"tb_audit_log"},
+            ... )
+        """
+        counts = counts or {}
+        overrides = overrides or {}
+        exclude_set = set(exclude) if exclude else set()
+
+        # Discover and sort all tables
+        sorted_names = self.introspector.topological_sort()
+
+        for name in sorted_names:
+            if name in exclude_set:
+                continue
+            self.add(
+                name,
+                count=counts.get(name, default_count),
+                overrides=overrides.get(name, {}),
+            )
+
+        return self.execute()
+
     def set_table_schema(self, table_name: str, table_info: TableInfo) -> None:
         """
         Set table schema manually (for staging backend only).
@@ -608,6 +715,9 @@ class SeedBuilder:
         import random
 
         faker_gen = FakerGenerator()
+
+        # Cache for cross-schema FK values (schema.table.column → list of values)
+        cross_schema_cache: dict[str, list[Any]] = {}
 
         # Build Trinity context if enabled
         trinity_context = None
@@ -795,6 +905,41 @@ class SeedBuilder:
                             row[col.name] = parent_row[fk.referenced_column]
                         continue
 
+                    # Cross-schema FK: query external table for values
+                    if fk.referenced_schema is not None:
+                        cache_key = (
+                            f"{fk.referenced_schema}.{fk.referenced_table}.{fk.referenced_column}"
+                        )
+                        if cache_key not in cross_schema_cache:
+                            if self.conn is None:
+                                raise ForeignKeyResolutionError(
+                                    fk.column,
+                                    f"{fk.referenced_schema}.{fk.referenced_table} "
+                                    f"(cross-schema FKs require a database connection; "
+                                    f"use overrides for staging backend)",
+                                )
+                            from psycopg import sql
+
+                            with self.conn.cursor() as cur:
+                                query = sql.SQL("SELECT {col} FROM {schema}.{table}").format(
+                                    col=sql.Identifier(fk.referenced_column),
+                                    schema=sql.Identifier(fk.referenced_schema),
+                                    table=sql.Identifier(fk.referenced_table),
+                                )
+                                cur.execute(query)
+                                values = [r[0] for r in cur.fetchall()]
+                            if not values:
+                                if col.is_nullable:
+                                    row[col.name] = None
+                                    continue
+                                raise ForeignKeyResolutionError(
+                                    fk.column,
+                                    f"{fk.referenced_schema}.{fk.referenced_table} (no rows found)",
+                                )
+                            cross_schema_cache[cache_key] = values
+                        row[col.name] = random.choice(cross_schema_cache[cache_key])
+                        continue
+
                     # Regular FK: validate parent data exists
                     if fk.referenced_table not in generated_data:
                         raise ForeignKeyResolutionError(fk.column, fk.referenced_table)
@@ -811,7 +956,12 @@ class SeedBuilder:
 
                 # Generate using strategy
                 if plan.strategy == "faker":
-                    value = faker_gen.generate(col.name, col.pg_type)
+                    value = faker_gen.generate(
+                        col.name,
+                        col.pg_type,
+                        max_length=col.max_length,
+                        is_nullable=col.is_nullable,
+                    )
                 else:
                     # Try custom generator from registry
                     from fraiseql_data.generators.registry import get_generator
@@ -841,7 +991,12 @@ class SeedBuilder:
                     # Retry if collision
                     retries = 0
                     while value in unique_values[col.name] and retries < MAX_UNIQUE_RETRIES:
-                        value = faker_gen.generate(col.name, col.pg_type)
+                        value = faker_gen.generate(
+                            col.name,
+                            col.pg_type,
+                            max_length=col.max_length,
+                            is_nullable=col.is_nullable,
+                        )
                         retries += 1
 
                     if retries == MAX_UNIQUE_RETRIES:

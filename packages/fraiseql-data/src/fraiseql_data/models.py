@@ -30,6 +30,7 @@ class ColumnInfo:
     default_value: str | None = None
     is_unique: bool = False
     is_identity: bool = False
+    max_length: int | None = None
 
 
 @dataclass
@@ -47,6 +48,7 @@ class ForeignKeyInfo:
     column: str
     referenced_table: str
     referenced_column: str
+    referenced_schema: str | None = None
     is_self_referencing: bool = False
 
 
@@ -208,14 +210,22 @@ class SeedRow:
             return self._data[name]
         raise AttributeError(f"No column '{name}' in seed data")
 
+    def __repr__(self) -> str:
+        return f"SeedRow({self._data})"
+
 
 class Seeds:
     """
-    Container for generated seed data with attribute access.
+    Container for generated seed data with attribute and dict-style access.
 
-    Allows accessing tables as attributes:
-        seeds.tb_manufacturer  # List of SeedRow objects
-        seeds.tb_model         # List of SeedRow objects
+    Access patterns:
+        seeds.tb_manufacturer       # Attribute access
+        seeds["tb_manufacturer"]    # Dict-style access
+        "tb_manufacturer" in seeds  # Membership test
+        seeds.tables()              # List of table names
+        len(seeds)                  # Number of tables
+        for name in seeds: ...      # Iterate table names
+        for name, rows in seeds.items(): ...  # Iterate pairs
     """
 
     def __init__(self):
@@ -249,6 +259,37 @@ class Seeds:
         if name in self._tables:
             return self._tables[name]
         raise AttributeError(f"No table '{name}' in seeds")
+
+    def __getitem__(self, name: str) -> list[SeedRow]:
+        """Dict-style access: seeds["tb_manufacturer"]."""
+        if name in self._tables:
+            return self._tables[name]
+        available = ", ".join(self._tables)
+        raise KeyError(f"Table '{name}' not in seeds. Available: {available}")
+
+    def __len__(self) -> int:
+        """Number of tables in seeds."""
+        return len(self._tables)
+
+    def __iter__(self):
+        """Iterate over table names."""
+        return iter(self._tables)
+
+    def __contains__(self, name: object) -> bool:
+        """Membership test: 'tb_foo' in seeds."""
+        return name in self._tables
+
+    def tables(self) -> list[str]:
+        """Return list of table names."""
+        return list(self._tables)
+
+    def items(self):
+        """Iterate over (table_name, rows) pairs."""
+        return self._tables.items()
+
+    def __repr__(self) -> str:
+        parts = [f"{name}({len(rows)})" for name, rows in self._tables.items()]
+        return f"Seeds({', '.join(parts)})"
 
     @classmethod
     def from_json(cls, file_path: Any | None = None, json_str: str | None = None) -> Seeds:
@@ -458,3 +499,18 @@ class SeedPlan:
     strategy: str = "faker"
     overrides: dict[str, Any] = field(default_factory=dict)
     groups: list[ColumnGroup] | None = field(default=None)
+
+
+@dataclass
+class ValidationResult:
+    """Result of seed plan validation.
+
+    Attributes:
+        is_valid: Whether the plan passed all checks
+        errors: List of error descriptions (empty if valid)
+        plan_summary: Ordered list of tables with counts and strategies
+    """
+
+    is_valid: bool
+    errors: list[str]
+    plan_summary: list[dict[str, Any]]
