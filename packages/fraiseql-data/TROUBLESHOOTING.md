@@ -121,9 +121,11 @@ with conn.cursor() as cur:
 # Use custom generator for unsupported types
 from fraiseql_data import SeedBuilder, register_generator
 
+
 @register_generator("custom_type")
 def generate_custom_type():
     return "custom_value"
+
 
 builder = SeedBuilder(conn, "public")
 builder.add("tb_custom", count=10, custom_generators={"data": generate_custom_type})
@@ -146,9 +148,8 @@ seeds = builder.add("tb_post", count=100, auto_deps=True).execute()
 
 # Option 2: Seed parent tables explicitly
 seeds = (
-    builder
-    .add("tb_user", count=50)      # Parent first
-    .add("tb_post", count=100)     # Child second
+    builder.add("tb_user", count=50)  # Parent first
+    .add("tb_post", count=100)  # Child second
     .execute()
 )
 
@@ -170,8 +171,7 @@ seeds = (
 
 # Example: Seed tb_user first, then tb_post with FK to user
 seeds = (
-    builder
-    .add("tb_user", count=10)
+    builder.add("tb_user", count=10)
     .add("tb_post", count=50)  # FK to tb_user
     .execute()
 )
@@ -191,8 +191,7 @@ seeds = builder.add("tb_product", count=100, auto_deps=True).execute()
 
 # Or explicitly seed parent table
 seeds = (
-    builder
-    .add("tb_category", count=10)  # Generate categories
+    builder.add("tb_category", count=10)  # Generate categories
     .add("tb_product", count=100)  # Products reference categories
     .execute()
 )
@@ -213,11 +212,15 @@ builder.add("tb_user", count=1000)  # Instead of 100,000
 
 # Option 2: Use custom generator with more entropy
 from faker import Faker
+
 fake = Faker()
+
 
 def generate_unique_email():
     import uuid
+
     return f"user-{uuid.uuid4()}@example.com"
+
 
 builder.add("tb_user", count=10000, custom_generators={"email": generate_unique_email})
 
@@ -234,11 +237,14 @@ builder.add("tb_user", count=10000, custom_generators={"email": generate_unique_
 # fraiseql-data tracks multi-column UNIQUE constraints automatically
 # If still failing, reduce row count or use custom generator
 
+
 def generate_unique_slug(row_data):
     """Generate slug based on other row data to ensure uniqueness."""
     tenant_id = row_data.get("tenant_id", 1)
     import uuid
+
     return f"slug-{tenant_id}-{uuid.uuid4().hex[:8]}"
+
 
 builder.add("tb_item", count=1000, custom_generators={"slug": generate_unique_slug})
 ```
@@ -260,12 +266,17 @@ def generate_price_discount():
     discount_price = price * random.uniform(1.1, 1.5)  # 10-50% higher
     return {"price": price, "discount_price": discount_price}
 
+
 # Apply to both columns
 data = generate_price_discount()
-builder.add("tb_product", count=100, custom_generators={
-    "price": lambda: data["price"],
-    "discount_price": lambda: data["discount_price"]
-})
+builder.add(
+    "tb_product",
+    count=100,
+    custom_generators={
+        "price": lambda: data["price"],
+        "discount_price": lambda: data["discount_price"],
+    },
+)
 ```
 
 ### Error: `CheckConstraintError: Generated value 'active' violates CHECK constraint "status IN ('active', 'pending', 'archived')"`
@@ -277,8 +288,10 @@ builder.add("tb_product", count=100, custom_generators={
 # Use custom generator with explicit choices
 import random
 
+
 def generate_status():
     return random.choice(["active", "pending", "archived"])
+
 
 builder.add("tb_order", count=100, custom_generators={"status": generate_status})
 ```
@@ -301,6 +314,7 @@ builder.add("tb_order", count=100, custom_generators={"status": generate_status}
 
 # Verify path is correct
 import os
+
 print(os.path.exists("db/seed_common/tb_user.yaml"))
 
 # Provide correct path to SeedBuilder
@@ -338,6 +352,7 @@ builder = SeedBuilder(conn, "public", seed_common="db/seed_common/")
 
 # Or suppress warning if intentional (small datasets)
 import warnings
+
 warnings.filterwarnings("ignore", category=UserWarning, message=".*seed_common.*")
 ```
 
@@ -380,12 +395,14 @@ print(f"DB ping: {(time.time() - start) * 1000:.2f}ms")
 # 2. Check introspection time
 start = time.time()
 from fraiseql_data import Introspector
+
 introspector = Introspector(conn, "public")
 introspector.introspect()
 print(f"Introspection: {time.time() - start:.2f}s")
 
 # 3. Check data generation time (no DB)
 from fraiseql_data.backends import StagingBackend
+
 staging = StagingBackend()
 builder = SeedBuilder(conn, "public", backend=staging)
 start = time.time()
@@ -397,6 +414,7 @@ print(f"Generation (in-memory): {time.time() - start:.2f}s")
 ```python
 # 1. Use StagingBackend for testing (no database writes)
 from fraiseql_data.backends import StagingBackend
+
 backend = StagingBackend()
 builder = SeedBuilder(conn, "public", backend=backend)
 
@@ -441,7 +459,9 @@ seeds = builder.add("tb_user", count=50000).execute()  # Instead of 500,000
 ```python
 # Use custom generators for domain-specific data
 from faker import Faker
+
 fake = Faker()
+
 
 def generate_product_name():
     """Generate realistic product names."""
@@ -449,15 +469,21 @@ def generate_product_name():
     nouns = ["Widget", "Gadget", "Device", "Tool", "Kit"]
     return f"{fake.random_element(adjectives)} {fake.random_element(nouns)}"
 
+
 def generate_sku():
     """Generate realistic SKU codes."""
     return f"{fake.random_uppercase_letter()}{fake.random_uppercase_letter()}{fake.random_int(1000, 9999)}"
 
-builder.add("tb_product", count=100, custom_generators={
-    "name": generate_product_name,
-    "sku": generate_sku,
-    "price": lambda: round(fake.random.uniform(9.99, 999.99), 2)
-})
+
+builder.add(
+    "tb_product",
+    count=100,
+    custom_generators={
+        "name": generate_product_name,
+        "sku": generate_sku,
+        "price": lambda: round(fake.random.uniform(9.99, 999.99), 2),
+    },
+)
 ```
 
 ### Issue: Need deterministic/reproducible data for testing
@@ -468,6 +494,7 @@ builder.add("tb_product", count=100, custom_generators={
 ```python
 # Set Faker seed for reproducibility
 from faker import Faker
+
 Faker.seed(12345)
 
 # Now data generation is deterministic
@@ -503,17 +530,21 @@ seeds = builder.add("tb_user", count=100).execute()
 ```python
 import json
 
+
 def generate_metadata():
     """Generate realistic JSONB metadata."""
-    return json.dumps({
-        "tags": fake.words(nb=5),
-        "attributes": {
-            "color": fake.color_name(),
-            "size": fake.random_element(["S", "M", "L", "XL"]),
-            "weight": fake.random_int(100, 5000)
-        },
-        "created_at": fake.iso8601()
-    })
+    return json.dumps(
+        {
+            "tags": fake.words(nb=5),
+            "attributes": {
+                "color": fake.color_name(),
+                "size": fake.random_element(["S", "M", "L", "XL"]),
+                "weight": fake.random_int(100, 5000),
+            },
+            "created_at": fake.iso8601(),
+        }
+    )
+
 
 builder.add("tb_product", count=100, custom_generators={"metadata": generate_metadata})
 ```
@@ -530,6 +561,7 @@ builder.add("tb_product", count=100, custom_generators={"metadata": generate_met
 4. **Enable debug logging**:
    ```python
    import logging
+
    logging.basicConfig(level=logging.DEBUG)
    ```
 5. **File an issue**: GitHub Issues (include minimal reproducible example)
@@ -539,6 +571,7 @@ builder.add("tb_product", count=100, custom_generators={"metadata": generate_met
 ```python
 # Inspect generated data without inserting
 from fraiseql_data.backends import StagingBackend
+
 backend = StagingBackend()
 builder = SeedBuilder(conn, "public", backend=backend)
 seeds = builder.add("tb_user", count=10).execute()
@@ -555,6 +588,7 @@ for table, info in schema.items():
 
 # Test Faker column mapping
 from fraiseql_data.generators.faker_gen import get_faker_for_column
+
 faker = get_faker_for_column("email", "VARCHAR")
 print(f"Email: {faker()}")
 ```
