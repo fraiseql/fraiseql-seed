@@ -25,11 +25,7 @@ from fraiseql_data import SeedBuilder
 conn = connect("postgresql://user:pass@localhost/mydb")
 
 builder = SeedBuilder(conn, schema="public")
-seeds = (
-    builder
-    .add("tb_order", count=100, auto_deps=True)
-    .execute()
-)
+seeds = builder.add("tb_order", count=100, auto_deps=True).execute()
 # tb_order depends on tb_customer, tb_product, etc.
 # All parent tables are introspected and populated automatically.
 
