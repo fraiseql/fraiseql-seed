@@ -74,11 +74,7 @@ from fraiseql_data import SeedBuilder
 
 # Standard usage with seed common
 conn = connect("postgresql://user:pass@localhost/mydb")
-builder = SeedBuilder(
-    conn,
-    schema="public",
-    seed_common="db/seed_common.yaml"
-)
+builder = SeedBuilder(conn, schema="public", seed_common="db/seed_common.yaml")
 
 # Without seed common (shows warning)
 builder = SeedBuilder(conn, schema="public")
@@ -88,11 +84,12 @@ builder = SeedBuilder(None, schema="test", backend="staging")
 
 # Environment-specific seed common
 import os
-os.environ['FRAISEQL_ENV'] = 'dev'
+
+os.environ["FRAISEQL_ENV"] = "dev"
 builder = SeedBuilder(
     conn,
     schema="public",
-    seed_common="db/"  # Auto-loads seed_common.dev.yaml
+    seed_common="db/",  # Auto-loads seed_common.dev.yaml
 )
 ```
 
@@ -148,31 +145,33 @@ add(
 builder.add("tb_product", count=100)
 
 # With overrides
-builder.add("tb_product", count=50, overrides={
-    "price": lambda: round(random.uniform(10.0, 500.0), 2),
-    "status": "active",  # Static value
-    "created_at": lambda i: f"2024-{i:02d}-01"  # Uses instance number
-})
+builder.add(
+    "tb_product",
+    count=50,
+    overrides={
+        "price": lambda: round(random.uniform(10.0, 500.0), 2),
+        "status": "active",  # Static value
+        "created_at": lambda i: f"2024-{i:02d}-01",  # Uses instance number
+    },
+)
 
 # With auto-deps (minimal)
 builder.add("tb_allocation", count=50, auto_deps=True)
 
 # With explicit auto-deps counts
-builder.add("tb_allocation", count=100, auto_deps={
-    "tb_organization": 3,
-    "tb_machine": 10
-})
+builder.add("tb_allocation", count=100, auto_deps={"tb_organization": 3, "tb_machine": 10})
 
 # With auto-deps config and overrides
-builder.add("tb_allocation", count=50, auto_deps={
-    "tb_organization": {
-        "count": 2,
-        "overrides": {
-            "name": lambda i: f"Org {i}",
-            "org_type": "nonprofit"
+builder.add(
+    "tb_allocation",
+    count=50,
+    auto_deps={
+        "tb_organization": {
+            "count": 2,
+            "overrides": {"name": lambda i: f"Org {i}", "org_type": "nonprofit"},
         }
-    }
-})
+    },
+)
 
 # Dynamic count
 builder.add("tb_product", count=lambda: random.randint(50, 100))
@@ -193,12 +192,7 @@ execute() -> Seeds
 **Example:**
 
 ```python
-seeds = (
-    builder
-    .add("tb_manufacturer", count=10)
-    .add("tb_product", count=100)
-    .execute()
-)
+seeds = builder.add("tb_manufacturer", count=10).add("tb_product", count=100).execute()
 
 # Access generated data
 for product in seeds.tb_product:
@@ -297,7 +291,7 @@ table_info = TableInfo(
         ColumnInfo(name="id", pg_type="uuid", is_nullable=False, is_unique=True),
         ColumnInfo(name="name", pg_type="text", is_nullable=False),
         ColumnInfo(name="price", pg_type="numeric", is_nullable=True),
-    ]
+    ],
 )
 builder.set_table_schema("tb_product", table_info)
 
@@ -320,15 +314,15 @@ seeds = builder.execute()
 
 # Access tables by name
 products = seeds.tb_product  # List[SeedRow]
-users = seeds.tb_user        # List[SeedRow]
+users = seeds.tb_user  # List[SeedRow]
 
 # Access columns by attribute
 for product in products:
     print(product.pk_product)  # Primary key
-    print(product.id)          # UUID
+    print(product.id)  # UUID
     print(product.identifier)  # Trinity identifier
-    print(product.name)        # Regular column
-    print(product.price)       # Nullable column
+    print(product.name)  # Regular column
+    print(product.price)  # Nullable column
 ```
 
 **Attributes:**
@@ -491,7 +485,7 @@ Individual row from seed data with attribute access.
 ```python
 # Access via Seeds
 for product in seeds.tb_product:  # product is SeedRow
-    print(product.pk_product)     # Attribute access
+    print(product.pk_product)  # Attribute access
     print(product.name)
     print(product.price)
 
@@ -534,6 +528,7 @@ pytest decorator for automatic seed data setup/cleanup.
 ```python
 import pytest
 from fraiseql_data import seed_data
+
 
 @seed_data("tb_manufacturer", count=5)
 @seed_data("tb_model", count=20)
@@ -694,7 +689,7 @@ table_info = TableInfo(
     columns=[
         ColumnInfo(name="pk_product", pg_type="integer", is_nullable=False, is_primary_key=True),
         ColumnInfo(name="name", pg_type="text", is_nullable=False),
-    ]
+    ],
 )
 ```
 
@@ -713,11 +708,7 @@ Column schema metadata.
 from fraiseql_data.models import ColumnInfo
 
 col = ColumnInfo(
-    name="pk_product",
-    pg_type="integer",
-    is_nullable=False,
-    is_primary_key=True,
-    is_unique=True
+    name="pk_product", pg_type="integer", is_nullable=False, is_primary_key=True, is_unique=True
 )
 ```
 
@@ -769,13 +760,13 @@ from typing import Callable
 from psycopg import Connection
 from pathlib import Path
 
+
 def add(
     table: str,
     count: int | Callable[[], int],
     overrides: dict[str, Any | Callable] | None = None,
-    auto_deps: bool | dict = False
-) -> SeedBuilder:
-    ...
+    auto_deps: bool | dict = False,
+) -> SeedBuilder: ...
 ```
 
 Use with ty for type checking:
