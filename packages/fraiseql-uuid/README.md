@@ -31,7 +31,7 @@ print(uuid)  # → "01234521-0000-4000-8000-000000000001"
 # Decode UUID
 decoded = pattern.decode(uuid)
 print(decoded["table_code"])  # → "012345"
-print(decoded["instance"])    # → 1
+print(decoded["instance"])  # → 1
 ```
 
 ## UUID Format
@@ -82,11 +82,11 @@ uuid = pattern.generate(table_code="012345", instance=1)
 # Full parameters
 uuid = pattern.generate(
     table_code="123456",
-    seed_dir=22,        # mutation tests
+    seed_dir=22,  # mutation tests
     function=42,
     scenario=1000,
     test_case=5,
-    instance=999
+    instance=999,
 )
 # → "12345622-0042-4100-8005-000000000999"
 ```
@@ -115,11 +115,11 @@ pattern = Pattern()
 decoded = pattern.decode("01234521-0042-4100-8015-000000000001")
 
 print(decoded["table_code"])  # → "012345"
-print(decoded["seed_dir"])    # → 21
-print(decoded["function"])    # → 42
-print(decoded["scenario"])    # → 1000
-print(decoded["test_case"])   # → 15
-print(decoded["instance"])    # → 1
+print(decoded["seed_dir"])  # → 21
+print(decoded["function"])  # → 42
+print(decoded["scenario"])  # → 1000
+print(decoded["test_case"])  # → 15
+print(decoded["instance"])  # → 1
 ```
 
 ### Validation

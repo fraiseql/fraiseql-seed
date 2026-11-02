@@ -49,7 +49,7 @@ from fraiseql_data import SeedBuilder
 builder = SeedBuilder(
     conn,
     schema="public",
-    seed_common="db/seed_common.yaml"  # Direct path
+    seed_common="db/seed_common.yaml",  # Direct path
 )
 ```
 
@@ -58,12 +58,13 @@ builder = SeedBuilder(
 ```python
 # Set environment variable
 import os
-os.environ['FRAISEQL_ENV'] = 'dev'
+
+os.environ["FRAISEQL_ENV"] = "dev"
 
 builder = SeedBuilder(
     conn,
     schema="public",
-    seed_common="db/"  # Auto-loads seed_common.dev.yaml
+    seed_common="db/",  # Auto-loads seed_common.dev.yaml
 )
 ```
 
@@ -82,7 +83,7 @@ Auto-detection order:
 builder = SeedBuilder(
     conn,
     schema="public",
-    seed_common="db/1_seed_common"  # SQL directory
+    seed_common="db/1_seed_common",  # SQL directory
 )
 ```
 
@@ -148,7 +149,7 @@ builder = SeedBuilder(
     conn,
     schema="public",
     seed_common="db/seed_common.yaml",
-    validate_seed_common=False  # Skip validation
+    validate_seed_common=False,  # Skip validation
 )
 ```
 

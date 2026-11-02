@@ -45,11 +45,10 @@ conn = connect("postgresql://user:pass@localhost/mydb")
 builder = SeedBuilder(
     conn,
     schema="public",
-    seed_common="db/seed_common.yaml"  # Optional but recommended
+    seed_common="db/seed_common.yaml",  # Optional but recommended
 )
 seeds = (
-    builder
-    .add("tb_manufacturer", count=10)
+    builder.add("tb_manufacturer", count=10)
     .add("tb_model", count=50)
     .add("tb_variant", count=200)
     .execute()
@@ -71,10 +70,9 @@ builder = SeedBuilder(conn, "public")
 
 # No need to specify order - dependencies auto-resolved
 seeds = (
-    builder
-    .add("tb_variant", count=100)      # Depends on tb_model
-    .add("tb_model", count=20)         # Depends on tb_manufacturer
-    .add("tb_manufacturer", count=5)   # No dependencies
+    builder.add("tb_variant", count=100)  # Depends on tb_model
+    .add("tb_model", count=20)  # Depends on tb_manufacturer
+    .add("tb_manufacturer", count=5)  # No dependencies
     .execute()
 )
 
@@ -96,7 +94,7 @@ seeds = builder.add(
     auto_deps={
         "tb_organization": 3,
         "tb_machine": 10,
-    }
+    },
 ).execute()
 
 # With overrides on auto-generated dependencies
@@ -108,7 +106,7 @@ seeds = builder.add(
             "count": 2,
             "overrides": {"org_type": "nonprofit"},
         }
-    }
+    },
 ).execute()
 ```
 
@@ -120,8 +118,8 @@ Automatic handling of Trinity pattern (pk_*, id, identifier):
 seeds = builder.add("tb_manufacturer", count=10).execute()
 
 for mfr in seeds.tb_manufacturer:
-    print(f"PK: {mfr.pk_manufacturer}")     # 1, 2, 3, ...
-    print(f"ID: {mfr.id}")                  # UUID v4 with pattern
+    print(f"PK: {mfr.pk_manufacturer}")  # 1, 2, 3, ...
+    print(f"ID: {mfr.id}")  # UUID v4 with pattern
     print(f"Identifier: {mfr.identifier}")  # MANUFACTURER-001, ...
 ```
 
@@ -181,14 +179,18 @@ builder.add("tb_address", count=100, overrides={"country": "France"})
 ```python
 from fraiseql_data import ColumnGroup
 
+
 def product_gen(context):
     category = context.get("category") or random.choice(["Electronics", "Clothing"])
     prefix = {"Electronics": "EL", "Clothing": "CL"}[category]
     return {"category": category, "sku": f"{prefix}-{random.randint(1000, 9999)}"}
 
-builder.add("tb_product", count=200, groups=[
-    ColumnGroup("product", frozenset({"category", "sku"}), product_gen)
-])
+
+builder.add(
+    "tb_product",
+    count=200,
+    groups=[ColumnGroup("product", frozenset({"category", "sku"}), product_gen)],
+)
 
 # Disable auto-detection entirely
 builder.add("tb_address", count=100, groups=[])
@@ -222,24 +224,28 @@ Override auto-generation for specific columns:
 ```python
 import random
 
-seeds = (
-    builder
-    .add("tb_product", count=50, overrides={
+seeds = builder.add(
+    "tb_product",
+    count=50,
+    overrides={
         "price": lambda: round(random.uniform(10.0, 500.0), 2),
         "status": "active",  # Static value for all rows
         "created_at": lambda i: f"2024-{i:02d}-01",  # Uses instance number
-    })
-    .execute()
-)
+    },
+).execute()
 ```
 
 **Override priority:** Overrides take precedence over both automatic FK resolution and column group generation. This enables cross-builder seeding where parent data already exists:
 
 ```python
 # Parent data already in database from a previous builder/migration
-builder.add("tb_product", count=50, overrides={
-    "fk_organization": 42,  # Use existing org, skip FK auto-resolution
-})
+builder.add(
+    "tb_product",
+    count=50,
+    overrides={
+        "fk_organization": 42,  # Use existing org, skip FK auto-resolution
+    },
+)
 ```
 
 When all FK columns pointing to a dependency table are overridden, that table can be omitted from the seed plan entirely.
@@ -336,10 +342,7 @@ seeds = builder.add("tb_product", count=100).execute()
 Define a required baseline layer that all test data builds upon, eliminating UUID collisions:
 
 ```python
-builder = SeedBuilder(
-    conn, schema="public",
-    seed_common="db/seed_common.yaml"
-)
+builder = SeedBuilder(conn, schema="public", seed_common="db/seed_common.yaml")
 ```
 
 **Instance range separation:**
@@ -355,6 +358,7 @@ Supports YAML, JSON, and environment-specific baselines (`seed_common.dev.yaml`,
 
 ```python
 from fraiseql_data import seed_data
+
 
 @seed_data("tb_manufacturer", count=5)
 @seed_data("tb_model", count=20)

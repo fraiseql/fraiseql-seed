@@ -254,6 +254,7 @@ seeds = builder.add("tb_user", count=1000).execute()
 
 # Export to JSON for inspection
 import json
+
 print(json.dumps(staging._data["public.tb_user"][:5], indent=2, default=str))
 ```
 
