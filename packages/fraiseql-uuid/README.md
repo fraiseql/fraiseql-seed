@@ -1,5 +1,10 @@
 # fraiseql-uuid
 
+> [!IMPORTANT]
+> **fraiseql-uuid moved to [fraiseql/fraiseql-uuid](https://github.com/fraiseql/fraiseql-uuid).**
+> This copy is no longer updated. The PyPI name is unchanged; 0.1.4 and later are
+> released from the new repository.
+
 UUID v4 compliant pattern with encoded metadata for the FraiseQL ecosystem.
 
 [![Quality Gate](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml)

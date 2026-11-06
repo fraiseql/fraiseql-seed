@@ -1,5 +1,16 @@
 # fraiseql-seed
 
+> [!IMPORTANT]
+> **fraiseql-seed is retired, and this repository receives no further changes.**
+>
+> - **fraiseql-data** is replaced by [fraiseql-semis](https://github.com/fraiseql/semis)
+>   (`uv add fraiseql-semis`). It is not a drop-in: a scenario file replaces
+>   `SeedBuilder`, rows are checked against the schema before they are written, and
+>   every id is a UUID that decodes to its table and scenario.
+> - **fraiseql-uuid** is developed in
+>   [fraiseql/fraiseql-uuid](https://github.com/fraiseql/fraiseql-uuid), with its
+>   history. Its name on PyPI is unchanged; 0.1.4 and later are released from there.
+
 Schema-aware test data generation for PostgreSQL with automatic foreign key resolution.
 
 This monorepo contains two packages: **fraiseql-data** (seed data generation) and **fraiseql-uuid** (pattern UUIDs with encoded metadata).

@@ -1,5 +1,10 @@
 # fraiseql-data
 
+> [!IMPORTANT]
+> **fraiseql-data is retired.** It is replaced by
+> [fraiseql-semis](https://github.com/fraiseql/semis) (`uv add fraiseql-semis`), which
+> is not a drop-in: a scenario file replaces `SeedBuilder`.
+
 Schema-aware seed data generation for PostgreSQL with Trinity pattern support.
 
 [![Quality Gate](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml/badge.svg)](https://github.com/fraiseql/fraiseql-seed/actions/workflows/quality-gate.yml)
